@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class WorkflowTaskDefinition(BaseModel):
     id: str
     agent_capability: str
     depends_on: list[str] = []
-    payload: Optional[dict[str, Any]] = None
+    payload: dict[str, Any] | None = None
     constraints: dict[str, Any] = {}
 
 
@@ -30,7 +30,7 @@ class WorkflowTaskResponse(BaseModel):
     capability_name: str
     depends_on: list[str]
     status: str
-    result: Optional[dict[str, Any]] = None
+    result: dict[str, Any] | None = None
 
 
 class WorkflowResponse(BaseModel):
@@ -39,11 +39,11 @@ class WorkflowResponse(BaseModel):
     status: str
     definition: dict[str, Any]
     context: dict[str, Any] = {}
-    result: Optional[dict[str, Any]] = None
-    error: Optional[dict[str, Any]] = None
+    result: dict[str, Any] | None = None
+    error: dict[str, Any] | None = None
     tasks: list[WorkflowTaskResponse] = []
     created_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
     class Config:
         from_attributes = True

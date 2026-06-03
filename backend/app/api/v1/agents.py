@@ -5,18 +5,20 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_db_session, get_current_subject, require_scope
+from app.core.dependencies import get_current_subject, get_db_session, require_scope
 from app.schemas.agent import (
-    RegistrationRequest,
-    RegistrationResponse,
+    AgentListResponse,
     AgentResponse,
     AgentUpdateRequest,
-    AgentListResponse,
+    RegistrationRequest,
+    RegistrationResponse,
 )
+from app.services.messaging import MessagingService
 from app.services.registry import RegistryService
 
 router = APIRouter(tags=["agents"])
 registry_service = RegistryService()
+messaging_service = MessagingService()
 
 
 @router.post(
@@ -108,3 +110,42 @@ async def list_agents(
         db, status=status_filter, limit=limit, offset=offset
     )
     return AgentListResponse(**result)
+
+
+@router.post("/agents/{agent_id}/heartbeat")
+async def send_heartbeat(
+    agent_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    _payload: Annotated[dict, Depends(require_scope("agent:update"))],
+):
+    try:
+        result = await messaging_service.send_heartbeat(db, agent_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+
+@router.put("/agents/{agent_id}/rotate-key")
+async def rotate_key(
+    agent_id: str,
+    body: dict,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("agent:update"))],
+):
+    new_public_key = body.get("public_key", "")
+    if not new_public_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="public_key is required",
+        )
+    try:
+        result = await registry_service.rotate_key(db, agent_id, new_public_key)
+        return result
+    except ValueError as e:
+        detail = str(e)
+        if "not found" in detail:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)

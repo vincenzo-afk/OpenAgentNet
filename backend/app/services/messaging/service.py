@@ -1,33 +1,82 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import log_audit_event
+from app.core.crypto import base64_to_public_key, canonical_json_bytes, verify_signature
 from app.models.agent import Agent
 from app.models.task import Task
-from app.core.crypto import base64_to_public_key, verify_signature, canonical_json_bytes
-from app.core.audit import log_audit_event
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class MessagingService:
+    async def send_heartbeat(self, db: AsyncSession, agent_id: str) -> dict[str, Any]:
+        """Record a heartbeat from an agent (PROTOCOL.md section 10)."""
+        try:
+            agent_uuid = uuid.UUID(agent_id)
+        except (ValueError, AttributeError):
+            raise ValueError("Invalid agent_id")
+        result = await db.execute(
+            select(Agent).where(Agent.id == agent_uuid, Agent.deleted_at.is_(None))
+        )
+        agent = result.scalar_one_or_none()
+        if not agent:
+            raise ValueError("Agent not found")
+        agent.last_seen_at = utcnow()
+        agent.updated_at = utcnow()
+        await db.flush()
+        return {
+            "agent_id": agent_id,
+            "status": "ok",
+            "last_seen_at": agent.last_seen_at.isoformat(),
+        }
+
+    async def mark_inactive_agents(self, db: AsyncSession) -> int:
+        """Mark agents as inactive if they missed heartbeats (PROTOCOL.md section 10)."""
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        threshold = utcnow() - __import__("datetime").timedelta(
+            seconds=settings.heartbeat_interval_seconds * settings.heartbeat_miss_threshold
+        )
+        result = await db.execute(
+            select(Agent).where(
+                Agent.status == "active",
+                Agent.deleted_at.is_(None),
+                Agent.last_seen_at < threshold,
+            )
+        )
+        agents = result.scalars().all()
+        for agent in agents:
+            agent.status = "inactive"
+            agent.updated_at = utcnow()
+        if agents:
+            await db.flush()
+        return len(agents)
+
     async def send_message(
         self, db: AsyncSession, envelope: dict[str, Any], sender_id: str
     ) -> dict[str, Any]:
         # Check message deduplication (FR-MSG-005)
         message_id = envelope.get("message_id")
         if message_id:
-            existing = await db.execute(select(Task).where(Task.id == uuid.UUID(message_id)))
-            if existing.scalar_one_or_none():
-                raise ValueError("Duplicate message_id")
+            try:
+                msg_uuid = uuid.UUID(message_id)
+            except (ValueError, AttributeError):
+                msg_uuid = None
+            if msg_uuid:
+                existing = await db.execute(select(Task).where(Task.id == msg_uuid))
+                if existing.scalar_one_or_none():
+                    raise ValueError("Duplicate message_id")
 
         # Check TTL enforcement (FR-MSG-006)
         ttl_seconds = envelope.get("ttl_seconds", 60)
@@ -69,8 +118,16 @@ class MessagingService:
 
         if not message_id:
             message_id = str(uuid.uuid4())
+
         task_data = envelope.get("task") or envelope.get("body") or envelope.get("payload") or {}
-        capability = task_data.get("name", "") if isinstance(task_data, dict) else ""
+        if isinstance(task_data, str):
+            capability = task_data
+            task_data = {"name": task_data}
+        elif isinstance(task_data, dict):
+            capability = task_data.get("name", task_data.get("slug", ""))
+        else:
+            capability = ""
+            task_data = {}
 
         # Create task record
         task = Task(
@@ -119,7 +176,11 @@ class MessagingService:
     async def get_message(
         self, db: AsyncSession, message_id: str, agent_id: str
     ) -> dict[str, Any] | None:
-        result = await db.execute(select(Task).where(Task.id == uuid.UUID(message_id)))
+        try:
+            msg_uuid = uuid.UUID(message_id)
+        except (ValueError, AttributeError):
+            return None
+        result = await db.execute(select(Task).where(Task.id == msg_uuid))
         task = result.scalar_one_or_none()
         if not task:
             return None
@@ -195,10 +256,14 @@ class MessagingService:
         }
 
     def _task_to_dict(self, task: Task) -> dict[str, Any]:
+        capability = ""
+        if isinstance(task.payload, dict):
+            capability = task.payload.get("name", task.payload.get("slug", ""))
         return {
             "message_id": str(task.id),
             "from_agent_id": str(task.from_agent_id),
             "to_agent_id": str(task.to_agent_id),
+            "capability": capability,
             "type": "task.request",
             "payload": task.payload,
             "status": task.status,

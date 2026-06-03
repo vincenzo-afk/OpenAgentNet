@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from jose import JWTError, jwt
@@ -15,7 +15,7 @@ def create_access_token(
     extra_claims: dict[str, Any] | None = None,
 ) -> str:
     settings = get_settings()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(minutes=settings.jwt_access_token_expire_minutes)
     jti = str(uuid.uuid4())
     payload: dict[str, Any] = {
@@ -34,7 +34,7 @@ def create_access_token(
 
 def create_refresh_token(subject: str) -> str:
     settings = get_settings()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(days=settings.jwt_refresh_token_expire_days)
     jti = str(uuid.uuid4())
     payload = {
@@ -66,7 +66,7 @@ async def revoke_token(jti: str, exp: datetime) -> None:
         from app.core.database import get_redis
 
         redis = await get_redis()
-        ttl = max(int((exp - datetime.now(timezone.utc)).total_seconds()), 1)
+        ttl = max(int((exp - datetime.now(UTC)).total_seconds()), 1)
         await redis.setex(f"token_denylist:{jti}", ttl, "1")
     except Exception:
         pass

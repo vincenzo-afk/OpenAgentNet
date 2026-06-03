@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.marketplace import MarketplaceListing
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class MarketplaceService:
@@ -65,13 +65,18 @@ class MarketplaceService:
 
         # Filter by capability if provided (search in agent's capabilities via join)
         if capability:
+            import json as _json
+
+            import sqlalchemy as sa
+
             from app.models.agent import Agent
 
+            safe_cap = _json.dumps([{"name": capability}])
             query = query.join(Agent, MarketplaceListing.agent_id == Agent.id).where(
-                Agent.capabilities.op("@>")(f'[{{"name": "{capability}"}}]')
+                Agent.capabilities.op("@>")(sa.text(f"'{safe_cap}'::jsonb"))
             )
             count_query = count_query.join(Agent, MarketplaceListing.agent_id == Agent.id).where(
-                Agent.capabilities.op("@>")(f'[{{"name": "{capability}"}}]')
+                Agent.capabilities.op("@>")(sa.text(f"'{safe_cap}'::jsonb"))
             )
 
         total_result = await db.execute(count_query)
@@ -85,7 +90,7 @@ class MarketplaceService:
             "total": total,
             "limit": limit,
             "offset": offset,
-            "items": [self._listing_to_dict(l) for l in listings],
+            "items": [self._listing_to_dict(listing) for listing in listings],
         }
 
     async def update_listing(

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class TrustScoreResponse(BaseModel):
@@ -13,20 +13,20 @@ class TrustScoreResponse(BaseModel):
     total_tasks: int
     successful_tasks: int
     dispute_count: int
-    last_active: Optional[datetime] = None
-    computed_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    last_active: datetime | None = None
+    computed_at: datetime | None = None
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
 
 
 class TrustEvent(BaseModel):
-    event_id: Optional[str] = None
+    event_id: str | None = None
     event_type: str
-    score_delta: Optional[float] = None
-    new_score: Optional[float] = None
-    reference_id: Optional[str] = None
+    score_delta: float | None = None
+    new_score: float | None = None
+    reference_id: str | None = None
     timestamp: datetime
 
 
@@ -37,7 +37,7 @@ class TrustEventsResponse(BaseModel):
 class EndorsementRequest(BaseModel):
     to_agent_id: str
     capability: str
-    comment: Optional[str] = None
+    comment: str | None = None
 
 
 class EndorsementResponse(BaseModel):
@@ -45,7 +45,7 @@ class EndorsementResponse(BaseModel):
     from_agent_id: str
     to_agent_id: str
     capability: str
-    comment: Optional[str] = None
+    comment: str | None = None
     weight: float
     created_at: datetime
 
@@ -53,7 +53,7 @@ class EndorsementResponse(BaseModel):
 class DisputeRequest(BaseModel):
     reported_agent_id: str
     reason: str
-    task_id: Optional[str] = None
+    task_id: str | None = None
     evidence: dict[str, Any] = {}
 
 

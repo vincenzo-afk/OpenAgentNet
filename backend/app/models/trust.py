@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Index, Integer, Numeric, Text, CheckConstraint
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, Numeric, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,7 +11,7 @@ from app.models.base import Base
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class TrustRecord(Base):
@@ -34,6 +34,9 @@ class TrustRecord(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "trust_score >= 0.0 AND trust_score <= 1.0", name="check_trust_score_range"
+        ),
         Index("idx_trust_score", "trust_score"),
         Index("idx_trust_agent", "agent_id"),
     )
@@ -52,6 +55,7 @@ class Endorsement(Base):
 
     __table_args__ = (
         CheckConstraint("from_agent_id != to_agent_id", name="no_self_endorse"),
+        UniqueConstraint("from_agent_id", "to_agent_id", "capability", name="unique_endorsement"),
         Index("idx_endorsements_to", "to_agent_id"),
         Index("idx_endorsements_from", "from_agent_id"),
     )

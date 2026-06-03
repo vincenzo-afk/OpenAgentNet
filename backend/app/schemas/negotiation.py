@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -17,21 +17,21 @@ class NegotiationProposalRequest(BaseModel):
 class NegotiationProposalResponse(BaseModel):
     negotiation_id: str
     status: str
-    session_token: Optional[str] = None
+    session_token: str | None = None
     expires_at: datetime
     created_at: datetime
 
 
 class NegotiationRespondRequest(BaseModel):
     decision: str = Field(..., pattern="^(accepted|countered|declined)$")
-    agreed_constraints: Optional[dict[str, Any]] = None
-    counter_proposal: Optional[dict[str, Any]] = None
+    agreed_constraints: dict[str, Any] | None = None
+    counter_proposal: dict[str, Any] | None = None
 
 
 class NegotiationResponseSchema(BaseModel):
     negotiation_id: str
     status: str
-    session_token: Optional[str] = None
+    session_token: str | None = None
     updated_at: datetime
 
 
@@ -42,8 +42,8 @@ class NegotiationDetail(BaseModel):
     capability: str
     status: str
     proposal: dict[str, Any]
-    response: Optional[dict[str, Any]] = None
-    session_token: Optional[str] = None
+    response: dict[str, Any] | None = None
+    session_token: str | None = None
     round_count: int
     expires_at: datetime
     created_at: datetime

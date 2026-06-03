@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
 
 class MarketplaceListingRequest(BaseModel):
     title: str
-    long_description: Optional[str] = None
+    long_description: str | None = None
     pricing: dict[str, Any] = {}
     sla: dict[str, Any] = {}
     tiers: list[dict[str, Any]] = []
@@ -19,7 +19,7 @@ class MarketplaceListingResponse(BaseModel):
     id: str
     agent_id: str
     title: str
-    long_description: Optional[str] = None
+    long_description: str | None = None
     pricing: dict[str, Any]
     sla: dict[str, Any]
     tiers: list[dict[str, Any]]

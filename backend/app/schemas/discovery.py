@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class DiscoverySearchRequest(BaseModel):
-    capabilities: Optional[list[str]] = None
+    capabilities: list[str] | None = None
     filters: dict[str, Any] = {}
     sort: str = "trust_score:desc"
     limit: int = Field(default=10, ge=1, le=50)
@@ -17,11 +16,11 @@ class DiscoverySearchRequest(BaseModel):
 class DiscoveryAgentResult(BaseModel):
     agent_id: str
     name: str
-    display_name: Optional[str] = None
+    display_name: str | None = None
     version: str
     capabilities: list[str]
     tags: list[str] = []
-    trust_score: Optional[float] = None
+    trust_score: float | None = None
     metadata: dict[str, Any] = {}
     status: str
 
@@ -29,4 +28,4 @@ class DiscoveryAgentResult(BaseModel):
 class DiscoverySearchResponse(BaseModel):
     total: int
     agents: list[DiscoveryAgentResult]
-    query_id: Optional[str] = None
+    query_id: str | None = None

@@ -3,7 +3,8 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import select, func, text
+import sqlalchemy as sa
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import Agent
@@ -31,12 +32,13 @@ class DiscoveryService:
 
         # Capability filter using JSONB containment
         if capabilities:
+            import json as _json
+
             for cap in capabilities:
-                query = query.where(
-                    Agent.capabilities.op("@>")(text(f'\'[{{"name": "{cap}"}}]\'::jsonb'))
-                )
+                safe_cap = _json.dumps([{"name": cap}])
+                query = query.where(Agent.capabilities.op("@>")(sa.text(f"'{safe_cap}'::jsonb")))
                 count_query = count_query.where(
-                    Agent.capabilities.op("@>")(text(f'\'[{{"name": "{cap}"}}]\'::jsonb'))
+                    Agent.capabilities.op("@>")(sa.text(f"'{safe_cap}'::jsonb"))
                 )
 
         # Trust score filter via join

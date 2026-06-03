@@ -7,11 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db_session, require_scope
 from app.schemas.negotiation import (
+    NegotiationDetail,
     NegotiationProposalRequest,
     NegotiationProposalResponse,
     NegotiationRespondRequest,
     NegotiationResponseSchema,
-    NegotiationDetail,
 )
 from app.services.negotiation import NegotiationService
 

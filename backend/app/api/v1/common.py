@@ -1,29 +1,30 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select, func
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_db_session, get_current_subject, require_scope
+from app.core.dependencies import get_current_subject, get_db_session, require_scope
 from app.core.security import (
     create_access_token,
     decode_token,
-    create_refresh_token,
+)
+from app.core.security import (
     revoke_token as revoke_jwt_token,
 )
-from app.models.audit import AuditEvent
 from app.models.agent import Agent
+from app.models.audit import AuditEvent
 from app.schemas.common import (
+    AuditEventResponse,
+    AuditListResponse,
     HealthResponse,
     SuspendRequest,
     TokenRefreshRequest,
     TokenRefreshResponse,
-    AuditEventResponse,
-    AuditListResponse,
 )
 from app.services.registry import RegistryService
 
@@ -60,9 +61,18 @@ async def suspend_agent(
     try:
         await registry_service.update_agent(db, agent_id, {"status": "suspended"})
         # Audit log
+        actor_id = None
+        sub = payload.get("sub", "")
+        try:
+            actor_id = uuid.UUID(sub)
+        except (ValueError, AttributeError):
+            agent_result = await db.execute(select(Agent).where(Agent.did == sub))
+            agent = agent_result.scalar_one_or_none()
+            if agent:
+                actor_id = agent.id
         audit = AuditEvent(
             event_type="agent_suspended",
-            actor_id=uuid.UUID(payload.get("sub", "00000000-0000-0000-0000-000000000000")),
+            actor_id=actor_id or uuid.UUID("00000000-0000-0000-0000-000000000000"),
             target_id=uuid.UUID(agent_id),
             target_type="agent",
             payload={"reason": body.reason},
@@ -93,6 +103,8 @@ async def get_audit_logs(
     payload: Annotated[dict, Depends(require_scope("admin"))],
     agent_id: str | None = None,
     event_type: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ):
@@ -100,11 +112,21 @@ async def get_audit_logs(
     count_query = select(func.count(AuditEvent.id))
 
     if agent_id:
-        query = query.where(AuditEvent.actor_id == uuid.UUID(agent_id))
-        count_query = count_query.where(AuditEvent.actor_id == uuid.UUID(agent_id))
+        try:
+            agent_uuid = uuid.UUID(agent_id)
+            query = query.where(AuditEvent.actor_id == agent_uuid)
+            count_query = count_query.where(AuditEvent.actor_id == agent_uuid)
+        except (ValueError, AttributeError):
+            pass
     if event_type:
         query = query.where(AuditEvent.event_type == event_type)
         count_query = count_query.where(AuditEvent.event_type == event_type)
+    if since:
+        query = query.where(AuditEvent.occurred_at >= since)
+        count_query = count_query.where(AuditEvent.occurred_at >= since)
+    if until:
+        query = query.where(AuditEvent.occurred_at <= until)
+        count_query = count_query.where(AuditEvent.occurred_at <= until)
 
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
@@ -148,7 +170,7 @@ async def refresh_token(
         extra_claims={"agent_id": payload.get("agent_id")},
     )
 
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=60)
+    expires_at = datetime.now(UTC) + timedelta(minutes=60)
 
     return TokenRefreshResponse(
         api_token=new_token,
@@ -163,8 +185,8 @@ async def revoke_current_token(
     jti = payload.get("jti")
     exp = payload.get("exp")
     if jti and exp:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        exp_dt = datetime.fromtimestamp(exp, tz=timezone.utc)
+        exp_dt = datetime.fromtimestamp(exp, tz=UTC)
         await revoke_jwt_token(jti, exp_dt)
     return None

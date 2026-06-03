@@ -1,30 +1,29 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import log_audit_event
 from app.core.crypto import (
     base64_to_public_key,
-    compute_agent_id_from_bytes,
-    public_key_to_bytes,
     canonical_json_bytes,
-    sign_message,
-    verify_signature,
+    compute_agent_id_from_bytes,
     generate_api_key,
     hash_api_key,
+    public_key_to_bytes,
+    verify_signature,
 )
 from app.core.security import create_access_token
-from app.core.audit import log_audit_event
 from app.models.agent import Agent, ApiKey
 from app.schemas.agent import AgentManifest
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class RegistryService:
@@ -211,6 +210,74 @@ class RegistryService:
             return False
         public_key = base64_to_public_key(agent["public_key"])
         return verify_signature(public_key, signature, message)
+
+    async def rotate_key(
+        self, db: AsyncSession, agent_id: str, new_public_key: str
+    ) -> dict[str, Any]:
+        """Rotate an agent's public key (SECURITY.md requirement)."""
+        result = await db.execute(
+            select(Agent).where(
+                Agent.id == uuid.UUID(agent_id),
+                Agent.deleted_at.is_(None),
+            )
+        )
+        agent = result.scalar_one_or_none()
+        if not agent:
+            raise ValueError("Agent not found")
+
+        new_pk = base64_to_public_key(new_public_key)
+        new_pk_bytes = public_key_to_bytes(new_pk)
+        new_did = f"did:oan:{compute_agent_id_from_bytes(new_pk_bytes)}"
+
+        # Check no other agent uses this key
+        existing = await db.execute(
+            select(Agent).where(
+                Agent.public_key == new_public_key,
+                Agent.id != uuid.UUID(agent_id),
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise ValueError("Key already in use by another agent")
+
+        old_key_id = agent.key_id
+        agent.public_key = new_public_key
+        agent.key_id = f"{new_did}#key-1"
+        agent.updated_at = utcnow()
+
+        # Invalidate old API keys
+        from app.models.agent import ApiKey
+
+        old_keys = await db.execute(select(ApiKey).where(ApiKey.agent_id == uuid.UUID(agent_id)))
+        for key in old_keys.scalars().all():
+            key.is_active = False
+
+        # Generate new API key
+        raw_api_key = generate_api_key()
+        api_key = ApiKey(
+            agent_id=agent.id,
+            key_hash=hash_api_key(raw_api_key),
+            key_prefix=raw_api_key[:12],
+            is_active=True,
+        )
+        db.add(api_key)
+        await db.flush()
+
+        # Audit log
+        await log_audit_event(
+            db,
+            event_type="key_rotated",
+            actor_id=agent.id,
+            target_id=agent.id,
+            target_type="agent",
+            payload={"old_key_id": old_key_id, "new_key_id": agent.key_id},
+        )
+
+        return {
+            "agent_id": agent_id,
+            "new_key_id": agent.key_id,
+            "api_key": raw_api_key,
+            "rotated_at": utcnow().isoformat(),
+        }
 
     async def authenticate_api_key(self, db: AsyncSession, api_key: str) -> dict[str, Any] | None:
         key_hash = hash_api_key(api_key)

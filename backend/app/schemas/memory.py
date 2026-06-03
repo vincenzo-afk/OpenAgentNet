@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -18,7 +18,7 @@ class MemoryWriteRequest(BaseModel):
     data_type: str = "json"
     permissions: list[MemoryPermissionSchema] = []
     ephemeral: bool = False
-    ttl_seconds: Optional[int] = None
+    ttl_seconds: int | None = None
 
 
 class MemoryObjectResponse(BaseModel):

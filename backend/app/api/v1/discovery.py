@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_db_session, get_current_subject, require_scope
+from app.core.dependencies import get_current_subject, get_db_session, require_scope
 from app.schemas.discovery import (
     DiscoverySearchRequest,
     DiscoverySearchResponse,

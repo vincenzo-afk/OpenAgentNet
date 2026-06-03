@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     Boolean,
-    DateTime,
-    Float,
-    Index,
-    Integer,
-    String,
-    Text,
     CheckConstraint,
+    DateTime,
+    Index,
+    Text,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
@@ -21,7 +18,7 @@ from app.models.base import Base
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Agent(Base):

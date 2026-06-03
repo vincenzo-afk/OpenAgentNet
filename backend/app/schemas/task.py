@@ -1,45 +1,45 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class TaskEnvelope(BaseModel):
     envelope_version: str = "0.1.0"
-    message_id: Optional[str] = None
-    conversation_id: Optional[str] = None
+    message_id: str | None = None
+    conversation_id: str | None = None
     to: str
     task: str
     payload: dict[str, Any]
     constraints: dict[str, Any] = {}
     ttl_seconds: int = Field(default=60, ge=1, le=3600)
-    signature: Optional[str] = None
+    signature: str | None = None
 
 
 class TaskResponseSchema(BaseModel):
     message_id: str
     task_id: str
     status: str
-    result: Optional[dict[str, Any]] = None
-    error: Optional[dict[str, Any]] = None
-    execution_ms: Optional[int] = None
+    result: dict[str, Any] | None = None
+    error: dict[str, Any] | None = None
+    execution_ms: int | None = None
     timestamp: datetime
 
 
 class MessageEnvelope(BaseModel):
     envelope_version: str = "0.1.0"
     message_id: str
-    conversation_id: Optional[str] = None
+    conversation_id: str | None = None
     from_did: str = Field(alias="from")
     to: str
     type: str
-    task: Optional[dict[str, Any]] = None
-    body: Optional[dict[str, Any]] = None
-    reply_to: Optional[str] = None
+    task: dict[str, Any] | None = None
+    body: dict[str, Any] | None = None
+    reply_to: str | None = None
     timestamp: datetime
-    signature: Optional[str] = None
+    signature: str | None = None
 
     class Config:
         populate_by_name = True
@@ -47,16 +47,16 @@ class MessageEnvelope(BaseModel):
 
 class SendMessageRequest(BaseModel):
     envelope_version: str = "0.1.0"
-    message_id: Optional[str] = None
-    conversation_id: Optional[str] = None
+    message_id: str | None = None
+    conversation_id: str | None = None
     to: str
     type: str = "task.request"
-    task: Optional[dict[str, Any]] = None
-    body: Optional[dict[str, Any]] = None
-    payload: Optional[dict[str, Any]] = None
+    task: dict[str, Any] | None = None
+    body: dict[str, Any] | None = None
+    payload: dict[str, Any] | None = None
     constraints: dict[str, Any] = {}
     ttl_seconds: int = Field(default=60, ge=1, le=3600)
-    signature: Optional[str] = None
+    signature: str | None = None
 
 
 class SendMessageResponse(BaseModel):
@@ -67,14 +67,14 @@ class SendMessageResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     message_id: str
-    conversation_id: Optional[str] = None
+    conversation_id: str | None = None
     from_agent_id: str
     to_agent_id: str
     type: str
     payload: dict[str, Any]
     status: str
     created_at: datetime
-    delivered_at: Optional[datetime] = None
+    delivered_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -103,17 +103,17 @@ class TaskCreateResponse(BaseModel):
 
 class TaskResponse(BaseModel):
     task_id: str
-    from_agent_id: str
-    to_agent_id: str
-    capability_name: str
+    initiator_id: str
+    executor_id: str
+    capability_slug: str
     status: str
     payload: dict[str, Any]
-    result: Optional[dict[str, Any]] = None
-    error_code: Optional[str] = None
-    error_message: Optional[str] = None
-    execution_ms: Optional[int] = None
-    created_at: datetime
-    completed_at: Optional[datetime] = None
+    result: dict[str, Any] | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+    duration_ms: int | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
     class Config:
         from_attributes = True

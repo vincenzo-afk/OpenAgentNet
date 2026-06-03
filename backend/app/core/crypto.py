@@ -8,12 +8,11 @@ import string
 import base58
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from canonicaljson import encode_canonical_json
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
 )
-
-from canonicaljson import encode_canonical_json
 
 # Argon2id hasher for API keys (SECURITY.md requirement)
 _argon2_ph = PasswordHasher(

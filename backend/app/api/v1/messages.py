@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,9 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db_session, require_scope
 from app.schemas.task import (
+    MessageListResponse,
     SendMessageRequest,
     SendMessageResponse,
-    MessageListResponse,
     TaskCreateRequest,
     TaskCreateResponse,
     TaskListResponse,
@@ -83,8 +84,7 @@ async def create_task(
     db: Annotated[AsyncSession, Depends(get_db_session)],
     payload: Annotated[dict, Depends(require_scope("tasks:initiate"))],
 ):
-    import uuid
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     agent_id = payload.get("agent_id", "")
     envelope = {
@@ -99,7 +99,7 @@ async def create_task(
         return TaskCreateResponse(
             task_id=result["message_id"],
             status="pending",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -117,12 +117,13 @@ async def get_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return TaskResponse(
         task_id=message["message_id"],
-        from_agent_id=message["from_agent_id"],
-        to_agent_id=message["to_agent_id"],
-        capability_name="",
+        initiator_id=message["from_agent_id"],
+        executor_id=message["to_agent_id"],
+        capability_slug=message.get("capability", ""),
         status=message["status"],
         payload=message["payload"],
-        created_at=message["created_at"],
+        started_at=message.get("created_at"),
+        completed_at=message.get("delivered_at"),
     )
 
 
@@ -132,6 +133,8 @@ async def list_tasks(
     payload: Annotated[dict, Depends(require_scope("tasks:read"))],
     role: str | None = None,
     status_filter: str | None = None,
+    capability: str | None = None,
+    since: str | None = None,
     limit: int = 20,
     offset: int = 0,
 ):
@@ -141,23 +144,27 @@ async def list_tasks(
         db,
         agent_id=agent_id,
         direction=direction,
+        since=since,
         limit=limit,
         offset=offset,
     )
     items = [
         TaskResponse(
             task_id=m["message_id"],
-            from_agent_id=m["from_agent_id"],
-            to_agent_id=m["to_agent_id"],
-            capability_name="",
+            initiator_id=m["from_agent_id"],
+            executor_id=m["to_agent_id"],
+            capability_slug=m.get("capability", ""),
             status=m["status"],
             payload=m["payload"],
-            created_at=m["created_at"],
+            started_at=m.get("created_at"),
+            completed_at=m.get("delivered_at"),
         )
         for m in result["items"]
+        if (not capability or m.get("capability", "") == capability)
+        and (not status_filter or m["status"] == status_filter)
     ]
     return TaskListResponse(
-        total=result["total"],
+        total=len(items),
         limit=limit,
         offset=offset,
         items=items,

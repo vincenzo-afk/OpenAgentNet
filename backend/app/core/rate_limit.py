@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from app.core.database import get_redis
 from app.core.config import get_settings
-
+from app.core.database import get_redis
 
 # Endpoint -> (limit, window_seconds)
 RATE_LIMIT_MAP: dict[str, tuple[int, int]] = {
@@ -21,12 +20,24 @@ RATE_LIMIT_MAP: dict[str, tuple[int, int]] = {
 }
 
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
+class PayloadSizeMiddleware(BaseHTTPMiddleware):
+    """Enforce max_payload_bytes on request bodies (SECURITY.md requirement)."""
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         settings = get_settings()
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > settings.max_payload_bytes:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request payload too large"},
+            )
+        return await call_next(request)
 
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # Skip rate limiting for docs and health
-        if request.url.path in ("/docs", "/redoc", "/openapi.json", "/health", "/"):
+        if request.url.path in ("/docs", "/redoc", "/openapi.json", "/health", "/v1/health", "/"):
             return await call_next(request)
 
         # Get client identifier (agent_id from token or IP)
@@ -35,9 +46,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Find matching rate limit
-        limit, window = self._get_rate_limit(request.url.path)
-        if limit is None:
+        rate_limit = self._get_rate_limit(request.url.path)
+        if rate_limit is None:
             return await call_next(request)
+        limit, window = rate_limit
 
         # Check rate limit in Redis
         try:

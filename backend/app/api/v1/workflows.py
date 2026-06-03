@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_db_session, require_scope
 from app.schemas.workflow import (
     WorkflowCreateRequest,
-    WorkflowResponse,
     WorkflowListResponse,
+    WorkflowResponse,
 )
 from app.services.orchestration import OrchestrationService
 

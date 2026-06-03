@@ -18,6 +18,7 @@ from app.core.crypto import (
     canonical_json_bytes,
     generate_api_key,
     hash_api_key,
+    verify_api_key,
 )
 
 
@@ -102,5 +103,14 @@ class TestApiKey:
     def test_hash_api_key(self):
         key = generate_api_key()
         h = hash_api_key(key)
-        assert len(h) == 64  # SHA256 hex digest
-        assert hash_api_key(key) == h  # deterministic
+        assert len(h) > 0  # Argon2id hash is not fixed length
+        assert h != key  # hash is not the raw key
+        # Argon2id hashes are not deterministic (random salt)
+        h2 = hash_api_key(key)
+        assert h != h2  # different hashes due to random salt
+
+    def test_verify_api_key(self):
+        key = generate_api_key()
+        h = hash_api_key(key)
+        assert verify_api_key(key, h)
+        assert not verify_api_key("wrong_key", h)

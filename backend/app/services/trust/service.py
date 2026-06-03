@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.audit import log_audit_event
-from app.models.trust import TrustRecord, Endorsement, Dispute
+from app.core.config import get_settings
 from app.models.task import Task
+from app.models.trust import Dispute, Endorsement, TrustRecord
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class TrustService:
@@ -87,7 +87,9 @@ class TrustService:
             select(TrustRecord).where(TrustRecord.agent_id == uuid.UUID(from_agent_id))
         )
         endorser_trust = endorser_result.scalar_one_or_none()
-        weight = float(endorser_trust.trust_score) if endorser_trust else 0.5
+        endorser_score = float(endorser_trust.trust_score) if endorser_trust else 0.5
+        # SECURITY.md: endorsement weight from agents with trust_score < 0.3 should be zero
+        weight = endorser_score if endorser_score >= 0.3 else 0.0
 
         # Check for existing endorsement
         existing = await db.execute(
@@ -243,10 +245,10 @@ class TrustService:
             "agent_id": str(record.agent_id),
             "score": float(record.trust_score),
             "components": {
-                "outcome_rate": float(record.outcome_rate),
-                "endorsement_score": float(record.endorsement_score),
+                "task_completion_rate": float(record.outcome_rate),
+                "latency_adherence": float(record.endorsement_score),
+                "dispute_outcome": 1.0 - float(record.dispute_penalty),
                 "age_factor": float(record.age_factor),
-                "dispute_penalty": float(record.dispute_penalty),
             },
             "total_tasks": record.total_tasks,
             "successful_tasks": record.successful_tasks,

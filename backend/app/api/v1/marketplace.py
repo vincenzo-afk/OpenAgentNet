@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_db_session, get_current_subject, require_scope
+from app.core.dependencies import get_current_subject, get_db_session, require_scope
 from app.schemas.marketplace import (
     MarketplaceListingRequest,
     MarketplaceListingResponse,

@@ -7,12 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db_session, require_scope
 from app.schemas.trust import (
-    TrustScoreResponse,
-    TrustEventsResponse,
-    EndorsementRequest,
-    EndorsementResponse,
     DisputeRequest,
     DisputeResponse,
+    EndorsementRequest,
+    EndorsementResponse,
+    TrustEventsResponse,
+    TrustScoreResponse,
 )
 from app.services.trust import TrustService
 
