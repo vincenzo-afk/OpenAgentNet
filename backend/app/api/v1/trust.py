@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_db_session, require_scope
+from app.core.dependencies import get_db_session, get_optional_subject, require_scope
 from app.schemas.trust import (
     DisputeRequest,
     DisputeResponse,
@@ -24,7 +24,7 @@ trust_service = TrustService()
 async def get_trust_score(
     agent_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    payload: Annotated[dict, Depends(require_scope("trust:read"))],
+    payload: Annotated[dict | None, Depends(get_optional_subject)],
 ):
     record = await trust_service.get_trust_record(db, agent_id)
     if not record:
@@ -36,7 +36,7 @@ async def get_trust_score(
 async def get_trust_events(
     agent_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    payload: Annotated[dict, Depends(require_scope("trust:read"))],
+    payload: Annotated[dict | None, Depends(get_optional_subject)],
     limit: int = 50,
 ):
     events = await trust_service.get_events(db, agent_id, limit=limit)

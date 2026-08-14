@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.identifiers import parse_agent_id
 from app.models.memory import MemoryObject, MemoryPermission
 
 
@@ -98,11 +99,12 @@ class MemoryService:
             return None
 
         # Check access: owner or has permission
-        if str(memory.owner_agent_id) != agent_id:
+        resolved_owner = str(memory.owner_agent_id)
+        if resolved_owner != agent_id and str(parse_agent_id(agent_id)) != resolved_owner:
             perm_result = await db.execute(
                 select(MemoryPermission).where(
                     MemoryPermission.memory_id == memory.id,
-                    MemoryPermission.grantee_agent_id == uuid.UUID(agent_id),
+                    MemoryPermission.grantee_agent_id == parse_agent_id(agent_id),
                 )
             )
             if not perm_result.scalar_one_or_none():
@@ -122,9 +124,9 @@ class MemoryService:
         limit: int = 20,
         offset: int = 0,
     ) -> dict[str, Any]:
-        query = select(MemoryObject).where(MemoryObject.owner_agent_id == uuid.UUID(agent_id))
+        query = select(MemoryObject).where(MemoryObject.owner_agent_id == parse_agent_id(agent_id))
         count_query = select(func.count(MemoryObject.id)).where(
-            MemoryObject.owner_agent_id == uuid.UUID(agent_id)
+            MemoryObject.owner_agent_id == parse_agent_id(agent_id)
         )
 
         if namespace:
@@ -154,7 +156,7 @@ class MemoryService:
         result = await db.execute(
             select(MemoryObject).where(
                 MemoryObject.id == uuid.UUID(memory_id),
-                MemoryObject.owner_agent_id == uuid.UUID(agent_id),
+                MemoryObject.owner_agent_id == parse_agent_id(agent_id),
             )
         )
         memory = result.scalar_one_or_none()

@@ -17,15 +17,19 @@ from app.api.v1.trust import router as trust_router
 from app.api.v1.workflows import router as workflows_router
 from app.core.config import get_settings
 from app.core.database import close_connections
+from app.core.nats_client import disconnect_nats
 from app.core.rate_limit import PayloadSizeMiddleware, RateLimitMiddleware
+from app.core.workers import start_background_workers
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await start_background_workers()
     yield
     await close_connections()
+    await disconnect_nats()
 
 
 app = FastAPI(

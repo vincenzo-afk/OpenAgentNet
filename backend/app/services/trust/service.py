@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_audit_event
 from app.core.config import get_settings
+from app.core.identifiers import parse_agent_id
 from app.models.task import Task
 from app.models.trust import Dispute, Endorsement, TrustRecord
 
@@ -30,12 +31,16 @@ class TrustService:
 
     async def get_trust_record(self, db: AsyncSession, agent_id: str) -> dict[str, Any] | None:
         result = await db.execute(
-            select(TrustRecord).where(TrustRecord.agent_id == uuid.UUID(agent_id))
+            select(TrustRecord).where(TrustRecord.agent_id == parse_agent_id(agent_id))
         )
+        resolved = parse_agent_id(agent_id)
+        if not resolved:
+            raise ValueError("Invalid agent_id")
+        result = await db.execute(select(TrustRecord).where(TrustRecord.agent_id == resolved))
         record = result.scalar_one_or_none()
         if not record:
             # Create initial record
-            record = TrustRecord(agent_id=uuid.UUID(agent_id))
+            record = TrustRecord(agent_id=resolved)
             db.add(record)
             await db.flush()
             return self._record_to_dict(record)
@@ -186,7 +191,7 @@ class TrustService:
 
         # Get trust record history
         result = await db.execute(
-            select(TrustRecord).where(TrustRecord.agent_id == uuid.UUID(agent_id))
+            select(TrustRecord).where(TrustRecord.agent_id == parse_agent_id(agent_id))
         )
         record = result.scalar_one_or_none()
         if not record:
@@ -206,7 +211,7 @@ class TrustService:
 
         # Add endorsement events
         endorsements_result = await db.execute(
-            select(Endorsement).where(Endorsement.to_agent_id == uuid.UUID(agent_id)).limit(limit)
+            select(Endorsement).where(Endorsement.to_agent_id == parse_agent_id(agent_id)).limit(limit)
         )
         for endorsement in endorsements_result.scalars().all():
             events.append(
@@ -224,7 +229,7 @@ class TrustService:
 
         # Add dispute events
         disputes_result = await db.execute(
-            select(Dispute).where(Dispute.reported_agent_id == uuid.UUID(agent_id)).limit(limit)
+            select(Dispute).where(Dispute.reported_agent_id == parse_agent_id(agent_id)).limit(limit)
         )
         for dispute in disputes_result.scalars().all():
             events.append(

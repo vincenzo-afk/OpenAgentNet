@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -9,7 +11,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_audit_event
+from app.core.config import get_settings
 from app.core.crypto import base64_to_public_key, canonical_json_bytes, verify_signature
+from app.core.identifiers import parse_agent_id
+from app.core.nats_client import publish_agent_announce, publish_to_agent
 from app.models.agent import Agent
 from app.models.task import Task
 
@@ -21,9 +26,8 @@ def utcnow() -> datetime:
 class MessagingService:
     async def send_heartbeat(self, db: AsyncSession, agent_id: str) -> dict[str, Any]:
         """Record a heartbeat from an agent (PROTOCOL.md section 10)."""
-        try:
-            agent_uuid = uuid.UUID(agent_id)
-        except (ValueError, AttributeError):
+        agent_uuid = parse_agent_id(agent_id)
+        if not agent_uuid:
             raise ValueError("Invalid agent_id")
         result = await db.execute(
             select(Agent).where(Agent.id == agent_uuid, Agent.deleted_at.is_(None))
@@ -34,6 +38,18 @@ class MessagingService:
         agent.last_seen_at = utcnow()
         agent.updated_at = utcnow()
         await db.flush()
+
+        # Announce availability over NATS (PROTOCOL.md section 10)
+        await publish_agent_announce(
+            str(agent.id),
+            {
+                "type": "agent.announce",
+                "agent_id": agent.did,
+                "status": agent.status,
+                "timestamp": utcnow().isoformat(),
+            },
+        )
+
         return {
             "agent_id": agent_id,
             "status": "ok",
@@ -66,8 +82,16 @@ class MessagingService:
     async def send_message(
         self, db: AsyncSession, envelope: dict[str, Any], sender_id: str
     ) -> dict[str, Any]:
-        # Check message deduplication (FR-MSG-005)
+        # Check message deduplication (FR-MSG-005).
+        # If the client supplies a message_id, reject exact repeats; otherwise
+        # de-duplicate on the canonical envelope hash so identical re-sends are
+        # not double-counted.
         message_id = envelope.get("message_id")
+        envelope_hash = hashlib.sha256(
+            canonical_json_bytes(
+                {k: v for k, v in envelope.items() if k not in ("signature",)}
+            )
+        ).hexdigest()
         if message_id:
             try:
                 msg_uuid = uuid.UUID(message_id)
@@ -77,29 +101,42 @@ class MessagingService:
                 existing = await db.execute(select(Task).where(Task.id == msg_uuid))
                 if existing.scalar_one_or_none():
                     raise ValueError("Duplicate message_id")
+        else:
+            existing = await db.execute(
+                select(Task).where(Task.envelope_hash == envelope_hash)
+            )
+            if existing.scalar_one_or_none():
+                raise ValueError("Duplicate message")
+            message_id = str(uuid.uuid4())
 
         # Check TTL enforcement (FR-MSG-006)
         ttl_seconds = envelope.get("ttl_seconds", 60)
         if ttl_seconds <= 0:
             raise ValueError("Message TTL has expired")
 
-        # Resolve recipient
+        # Resolve recipient by DID or UUID
         recipient_did = envelope.get("to", "")
-        recipient_result = await db.execute(
-            select(Agent).where(
-                Agent.did == recipient_did,
-                Agent.deleted_at.is_(None),
-                Agent.status == "active",
-            )
+        recipient_id = parse_agent_id(recipient_did)
+        recipient_query = select(Agent).where(
+            Agent.deleted_at.is_(None),
+            Agent.status == "active",
         )
+        if recipient_id:
+            recipient_query = recipient_query.where(Agent.id == recipient_id)
+        else:
+            recipient_query = recipient_query.where(Agent.did == recipient_did)
+        recipient_result = await db.execute(recipient_query)
         recipient = recipient_result.scalar_one_or_none()
         if not recipient:
             raise ValueError("Recipient not found or inactive")
 
         # Verify sender
+        sender_id_resolved = parse_agent_id(sender_id)
+        if not sender_id_resolved:
+            raise ValueError("Sender not found")
         sender_result = await db.execute(
             select(Agent).where(
-                Agent.id == uuid.UUID(sender_id),
+                Agent.id == sender_id_resolved,
                 Agent.deleted_at.is_(None),
             )
         )
@@ -116,9 +153,6 @@ class MessagingService:
             if not verify_signature(public_key, signature, canonical):
                 raise ValueError("Invalid message signature")
 
-        if not message_id:
-            message_id = str(uuid.uuid4())
-
         task_data = envelope.get("task") or envelope.get("body") or envelope.get("payload") or {}
         if isinstance(task_data, str):
             capability = task_data
@@ -131,7 +165,7 @@ class MessagingService:
 
         # Create task record
         task = Task(
-            id=uuid.UUID(message_id),
+            id=message_id,
             from_agent_id=sender.id,
             to_agent_id=recipient.id,
             capability_name=capability,
@@ -139,6 +173,7 @@ class MessagingService:
             constraints=envelope.get("constraints", {}),
             status="pending",
             ttl_seconds=ttl_seconds,
+            envelope_hash=envelope_hash,
         )
         db.add(task)
         await db.flush()
@@ -153,19 +188,24 @@ class MessagingService:
             payload={"message_id": message_id, "capability": capability},
         )
 
-        # Try HTTP delivery
-        delivery_mode = "http"
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    recipient.endpoint,
-                    json=envelope,
-                    headers={"Content-Type": "application/json"},
-                )
-                if response.status_code >= 400:
-                    delivery_mode = "queued"
-        except Exception:
-            delivery_mode = "queued"
+        # Deliver via NATS JetStream when available (DESIGN.md), falling back to
+        # direct HTTP delivery to the agent's endpoint.
+        delivery_mode = "queued"
+        nats_ok = await publish_to_agent(str(recipient.id), envelope)
+        if not nats_ok:
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(
+                        recipient.endpoint,
+                        json=envelope,
+                        headers={"Content-Type": "application/json"},
+                    )
+                    if response.status_code < 400:
+                        delivery_mode = "http"
+            except Exception:
+                pass
+        else:
+            delivery_mode = "nats"
 
         return {
             "message_id": message_id,
@@ -176,6 +216,9 @@ class MessagingService:
     async def get_message(
         self, db: AsyncSession, message_id: str, agent_id: str
     ) -> dict[str, Any] | None:
+        resolved = parse_agent_id(agent_id)
+        if not resolved:
+            return None
         try:
             msg_uuid = uuid.UUID(message_id)
         except (ValueError, AttributeError):
@@ -186,8 +229,7 @@ class MessagingService:
             return None
 
         # Check access
-        agent_uuid = uuid.UUID(agent_id)
-        if task.from_agent_id != agent_uuid and task.to_agent_id != agent_uuid:
+        if task.from_agent_id != resolved and task.to_agent_id != resolved:
             return None
 
         return self._task_to_dict(task)
@@ -203,7 +245,9 @@ class MessagingService:
         limit: int = 20,
         offset: int = 0,
     ) -> dict[str, Any]:
-        agent_uuid = uuid.UUID(agent_id)
+        agent_uuid = parse_agent_id(agent_id)
+        if not agent_uuid:
+            raise ValueError("Invalid agent_id")
         query = select(Task)
 
         if direction == "sent":

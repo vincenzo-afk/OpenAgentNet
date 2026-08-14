@@ -50,7 +50,12 @@ class Agent(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    api_keys: Mapped[list[ApiKey]] = relationship("ApiKey", back_populates="agent", lazy="selectin")
+    api_keys: Mapped[list[ApiKey]] = relationship(
+        "ApiKey",
+        back_populates="agent",
+        lazy="selectin",
+        primaryjoin="Agent.id == foreign(ApiKey.agent_id)",
+    )
 
     __table_args__ = (
         CheckConstraint("owner_type IN ('user', 'organization')", name="check_owner_type"),
@@ -77,7 +82,13 @@ class ApiKey(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    agent: Mapped[Agent] = relationship("Agent", back_populates="api_keys", lazy="selectin")
+    agent: Mapped[Agent] = relationship(
+        "Agent",
+        back_populates="api_keys",
+        lazy="selectin",
+        primaryjoin="ApiKey.agent_id == Agent.id",
+        foreign_keys="[ApiKey.agent_id]",
+    )
 
     __table_args__ = (
         Index("idx_api_keys_agent", "agent_id"),

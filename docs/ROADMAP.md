@@ -4,7 +4,7 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 ---
 
-## Phase 1 — Core Infrastructure (Current)
+## Phase 1 — Core Infrastructure (Complete — `v0.1.0` shipped)
 
 **Goal**: A working agent registry, discovery, messaging, and basic trust. A developer can register an agent, discover other agents, send tasks, and receive results.
 
@@ -13,19 +13,19 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 ### Deliverables
 
 - [x] Project scaffold and documentation
-- [ ] PostgreSQL schema and Alembic migrations
-- [ ] Agent Registry Service (`/v1/agents`)
-- [ ] Agent authentication (API key + Ed25519 signing)
-- [ ] Discovery Engine with capability and tag search (`/v1/discover`)
-- [ ] NATS setup with JetStream streams (`TASKS`, `EVENTS`)
-- [ ] Messaging Service (send, receive, ack, cancel)
-- [ ] Basic trust score (outcome rate only, no endorsements yet)
-- [ ] Health check and heartbeat system
-- [ ] Docker Compose local dev setup
-- [ ] Example agent: Echo Agent (returns what it receives)
-- [ ] Example agent: Summarizer Agent (wraps an LLM API)
-- [ ] Dashboard: Agent list view (read-only)
-- [ ] API docs via FastAPI `/docs`
+- [x] PostgreSQL schema and Alembic migrations (001–004)
+- [x] Agent Registry Service (`/v1/agents`)
+- [x] Agent authentication (API key + Ed25519 proof-of-possession + JWT)
+- [x] Discovery Engine with capability and tag search (`/v1/discover`)
+- [x] NATS setup with JetStream streams (`TASKS`, `EVENTS`)
+- [x] Messaging Service (send, receive, ack, cancel)
+- [x] Basic trust score (outcome rate + endorsements + age factor + dispute penalty)
+- [x] Health check and heartbeat system
+- [x] Docker Compose local dev setup
+- [x] Example agent: Echo Agent (returns what it receives)
+- [x] Example agent: Summarizer Agent
+- [x] Dashboard: Agent list, agent detail, trust scores, message inspector
+- [x] API docs via FastAPI `/docs`
 
 **Timeline estimate**: 6–8 weeks (solo) / 3–4 weeks (small team)
 

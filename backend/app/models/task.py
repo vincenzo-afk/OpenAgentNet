@@ -37,6 +37,8 @@ class Task(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ttl_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
+    envelope_hash: Mapped[str | None] = mapped_column(Text)
+    type: Mapped[str] = mapped_column(Text, nullable=False, default="task.request")
 
     __table_args__ = (
         CheckConstraint(
@@ -51,4 +53,5 @@ class Task(Base):
             "idx_tasks_workflow", "workflow_id", postgresql_where=text("workflow_id IS NOT NULL")
         ),
         Index("idx_tasks_created_at", "created_at"),
+        Index("idx_tasks_envelope_hash", "envelope_hash", postgresql_where=text("envelope_hash IS NOT NULL")),
     )

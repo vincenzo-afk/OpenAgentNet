@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.identifiers import parse_agent_id
 from app.models.marketplace import MarketplaceListing
 
 
@@ -23,13 +24,16 @@ class MarketplaceService:
     ) -> dict[str, Any]:
         # Check if agent already has a listing
         existing = await db.execute(
-            select(MarketplaceListing).where(MarketplaceListing.agent_id == uuid.UUID(agent_id))
+            select(MarketplaceListing).where(MarketplaceListing.agent_id == parse_agent_id(agent_id))
         )
         if existing.scalar_one_or_none():
             raise ValueError("Agent already has a marketplace listing")
 
+        resolved = parse_agent_id(agent_id)
+        if not resolved:
+            raise ValueError("Invalid agent_id")
         listing = MarketplaceListing(
-            agent_id=uuid.UUID(agent_id),
+            agent_id=resolved,
             title=data["title"],
             long_description=data.get("long_description"),
             pricing=data.get("pricing", {}),
@@ -100,7 +104,7 @@ class MarketplaceService:
         data: dict[str, Any],
     ) -> dict[str, Any]:
         result = await db.execute(
-            select(MarketplaceListing).where(MarketplaceListing.agent_id == uuid.UUID(agent_id))
+            select(MarketplaceListing).where(MarketplaceListing.agent_id == parse_agent_id(agent_id))
         )
         listing = result.scalar_one_or_none()
         if not listing:
@@ -116,7 +120,7 @@ class MarketplaceService:
 
     async def delete_listing(self, db: AsyncSession, agent_id: str) -> None:
         result = await db.execute(
-            select(MarketplaceListing).where(MarketplaceListing.agent_id == uuid.UUID(agent_id))
+            select(MarketplaceListing).where(MarketplaceListing.agent_id == parse_agent_id(agent_id))
         )
         listing = result.scalar_one_or_none()
         if not listing:

@@ -11,12 +11,12 @@ from app.core.audit import log_audit_event
 from app.core.crypto import (
     base64_to_public_key,
     canonical_json_bytes,
-    compute_agent_id_from_bytes,
     generate_api_key,
     hash_api_key,
     public_key_to_bytes,
     verify_signature,
 )
+from app.core.identifiers import build_did, derive_agent_id_from_bytes, parse_agent_id
 from app.core.security import create_access_token
 from app.models.agent import Agent, ApiKey
 from app.schemas.agent import AgentManifest
@@ -34,9 +34,12 @@ class RegistryService:
         public_key = base64_to_public_key(manifest.public_key)
         pk_bytes = public_key_to_bytes(public_key)
 
-        # Compute deterministic agent_id from public key (per DESIGN.md)
-        agent_id = compute_agent_id_from_bytes(pk_bytes)
-        did = f"did:oan:{agent_id}"
+        # Compute deterministic agent_id from public key (per DESIGN.md).
+        # The identity is a UUIDv5 derived from base58(sha256(pubkey))[:24],
+        # so agents can compute their own ID offline while the PK column
+        # remains a valid PostgreSQL UUID for all FK relations.
+        agent_id = derive_agent_id_from_bytes(pk_bytes)
+        did = build_did(agent_id)
         key_id = f"{did}#key-1"
 
         # Verify proof signature
@@ -50,14 +53,14 @@ class RegistryService:
         # Check for duplicate by agent_id or public key
         existing = await db.execute(
             select(Agent).where(
-                (Agent.id == uuid.UUID(agent_id)) | (Agent.public_key == manifest.public_key)
+                (Agent.id == agent_id) | (Agent.public_key == manifest.public_key)
             )
         )
         if existing.scalar_one_or_none():
             raise ValueError("Agent with this public key already registered")
 
         agent = Agent(
-            id=uuid.UUID(agent_id),
+            id=agent_id,
             did=did,
             name=manifest.name,
             display_name=manifest.display_name,
@@ -104,11 +107,11 @@ class RegistryService:
         token = create_access_token(
             subject=did,
             scopes=["agent:all"],
-            extra_claims={"agent_id": agent_id},
+            extra_claims={"agent_id": str(agent_id)},
         )
 
         return {
-            "agent_id": agent_id,
+            "agent_id": str(agent_id),
             "did": did,
             "api_token": token,
             "registered_at": utcnow(),
@@ -116,12 +119,13 @@ class RegistryService:
         }
 
     async def get_agent(self, db: AsyncSession, agent_id: str) -> dict[str, Any] | None:
-        result = await db.execute(
-            select(Agent).where(
-                Agent.id == uuid.UUID(agent_id),
-                Agent.deleted_at.is_(None),
-            )
-        )
+        resolved = parse_agent_id(agent_id)
+        query = Agent.deleted_at.is_(None)
+        if resolved:
+            query = query & (Agent.id == resolved)
+        else:
+            query = query & (Agent.did.like(f"%{agent_id}%"))
+        result = await db.execute(select(Agent).where(query))
         agent = result.scalar_one_or_none()
         if not agent:
             return None
@@ -139,9 +143,12 @@ class RegistryService:
     async def update_agent(
         self, db: AsyncSession, agent_id: str, updates: dict[str, Any]
     ) -> dict[str, Any]:
+        resolved = parse_agent_id(agent_id)
+        if not resolved:
+            raise ValueError("Agent not found")
         result = await db.execute(
             select(Agent).where(
-                Agent.id == uuid.UUID(agent_id),
+                Agent.id == resolved,
                 Agent.deleted_at.is_(None),
             )
         )
@@ -166,7 +173,10 @@ class RegistryService:
         return self._agent_to_dict(agent)
 
     async def deregister_agent(self, db: AsyncSession, agent_id: str) -> None:
-        result = await db.execute(select(Agent).where(Agent.id == uuid.UUID(agent_id)))
+        resolved = parse_agent_id(agent_id)
+        if not resolved:
+            raise ValueError("Agent not found")
+        result = await db.execute(select(Agent).where(Agent.id == resolved))
         agent = result.scalar_one_or_none()
         if not agent:
             raise ValueError("Agent not found")
@@ -211,29 +221,34 @@ class RegistryService:
         public_key = base64_to_public_key(agent["public_key"])
         return verify_signature(public_key, signature, message)
 
+
     async def rotate_key(
         self, db: AsyncSession, agent_id: str, new_public_key: str
     ) -> dict[str, Any]:
         """Rotate an agent's public key (SECURITY.md requirement)."""
+        resolved = parse_agent_id(agent_id)
+        if not resolved:
+            raise ValueError("Agent not found")
         result = await db.execute(
             select(Agent).where(
-                Agent.id == uuid.UUID(agent_id),
+                Agent.id == resolved,
                 Agent.deleted_at.is_(None),
             )
         )
         agent = result.scalar_one_or_none()
         if not agent:
+
             raise ValueError("Agent not found")
 
         new_pk = base64_to_public_key(new_public_key)
         new_pk_bytes = public_key_to_bytes(new_pk)
-        new_did = f"did:oan:{compute_agent_id_from_bytes(new_pk_bytes)}"
+        new_did = build_did(derive_agent_id_from_bytes(new_pk_bytes))
 
         # Check no other agent uses this key
         existing = await db.execute(
             select(Agent).where(
                 Agent.public_key == new_public_key,
-                Agent.id != uuid.UUID(agent_id),
+                Agent.id != (resolved or uuid.UUID(agent_id)),
             )
         )
         if existing.scalar_one_or_none():
@@ -247,7 +262,9 @@ class RegistryService:
         # Invalidate old API keys
         from app.models.agent import ApiKey
 
-        old_keys = await db.execute(select(ApiKey).where(ApiKey.agent_id == uuid.UUID(agent_id)))
+        old_keys = await db.execute(
+            select(ApiKey).where(ApiKey.agent_id == (resolved or uuid.UUID(agent_id)))
+        )
         for key in old_keys.scalars().all():
             key.is_active = False
 

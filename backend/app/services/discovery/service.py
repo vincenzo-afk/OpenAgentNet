@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.identifiers import parse_agent_id
 from app.models.agent import Agent
 from app.models.trust import TrustRecord
 
@@ -113,7 +114,7 @@ class DiscoveryService:
     ) -> list[dict[str, Any]]:
         result = await db.execute(
             select(Agent).where(
-                Agent.id == uuid.UUID(agent_id),
+                Agent.id == parse_agent_id(agent_id),
                 Agent.deleted_at.is_(None),
             )
         )
@@ -129,7 +130,7 @@ class DiscoveryService:
         query = (
             select(Agent)
             .where(
-                Agent.id != uuid.UUID(agent_id),
+                Agent.id != parse_agent_id(agent_id),
                 Agent.deleted_at.is_(None),
                 Agent.status == "active",
             )

@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: openagentnet
+          POSTGRES_PASSWORD: openagentnet
+          POSTGRES_DB: openagentnet
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U openagentnet -d openagentnet"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Start NATS with JetStream
+        run: |
+          curl -sL https://github.com/nats-io/nats-server/releases/download/v2.10.17/nats-server-v2.10.17-linux-amd64.tar.gz | tar xz
+          sudo mv nats-server-v2.10.17-linux-amd64/nats-server /usr/local/bin/
+          nats-server --jetstream --store_dir /tmp/natsdata --port 4222 &
+          sleep 3
+
+      - name: Generate JWT keys
+        run: bash backend/scripts/generate-keys.sh
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Run migrations
+        working-directory: backend
+        run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://openagentnet:openagentnet@localhost:5432/openagentnet
+          REDIS_URL: redis://localhost:6379/0
+          NATS_URL: nats://localhost:4222
+
+      - name: Run unit tests
+        working-directory: backend
+        run: pytest tests/ -q
+        env:
+          DATABASE_URL: postgresql+asyncpg://openagentnet:openagentnet@localhost:5432/openagentnet
+          REDIS_URL: redis://localhost:6379/0
+          NATS_URL: nats://localhost:4222
+
+      - name: Boot server and run end-to-end smoke test
+        working-directory: backend
+        run: |
+          nohup uvicorn app.main:app --port 8000 > /tmp/server.log 2>&1 &
+          for i in $(seq 1 20); do curl -sf http://localhost:8000/v1/health && break || sleep 1; done
+          cd .. && python3 e2e_test.py
+        env:
+          DATABASE_URL: postgresql+asyncpg://openagentnet:openagentnet@localhost:5432/openagentnet
+          REDIS_URL: redis://localhost:6379/0
+          NATS_URL: nats://localhost:4222
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile || pnpm install
+        working-directory: frontend
+      - run: pnpm build
+        working-directory: frontend

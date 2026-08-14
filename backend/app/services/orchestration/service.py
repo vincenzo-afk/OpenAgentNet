@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.identifiers import parse_agent_id
 from app.models.workflow import Workflow, WorkflowTask
 
 
@@ -67,9 +68,9 @@ class OrchestrationService:
         limit: int = 20,
         offset: int = 0,
     ) -> dict[str, Any]:
-        query = select(Workflow).where(Workflow.owner_agent_id == uuid.UUID(agent_id))
+        query = select(Workflow).where(Workflow.owner_agent_id == parse_agent_id(agent_id))
         count_query = select(func.count(Workflow.id)).where(
-            Workflow.owner_agent_id == uuid.UUID(agent_id)
+            Workflow.owner_agent_id == parse_agent_id(agent_id)
         )
 
         total_result = await db.execute(count_query)

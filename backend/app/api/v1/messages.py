@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import uuid
 from datetime import UTC
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.task import Task
 
 from app.core.dependencies import get_db_session, require_scope
 from app.schemas.task import (
@@ -48,6 +52,78 @@ async def get_message(
     if not message:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     return message
+
+
+@router.post("/{message_id}/result", status_code=status.HTTP_200_OK)
+async def report_task_result(
+    message_id: str,
+    body: dict,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("messages:send"))],
+):
+    """Agent-reported task outcome. Closes the trust loop:
+
+    Executors (or initiators) POST the execution result of a previously
+    dispatched task. Status must be one of ``success`` / ``partial`` /
+    ``failed`` / ``declined``. The trust service records the outcome so the
+    agent's trust score reflects real behaviour (PROTOCOL.md section 5).
+    """
+    from app.core.identifiers import parse_agent_id
+
+    agent_id = payload.get("agent_id", "")
+    resolved = parse_agent_id(agent_id)
+    if not resolved:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid agent_id")
+
+    try:
+        msg_uuid = uuid.UUID(message_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid message_id")
+
+    result_data = await db.execute(select(Task).where(Task.id == msg_uuid))
+    task = result_data.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    if resolved not in (task.from_agent_id, task.to_agent_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only participants may report a task result",
+        )
+
+    outcome_status = str(body.get("status", "success"))
+    if outcome_status not in ("success", "partial", "failed", "declined"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="status must be success/partial/failed/declined",
+        )
+
+    task.status = outcome_status
+    task.result = body.get("result") or task.result
+    if outcome_status == "failed":
+        task.error_code = body.get("error_code", task.error_code)
+        task.error_message = body.get("error_message", task.error_message)
+    if body.get("execution_ms"):
+        task.execution_ms = int(body["execution_ms"])
+    task.completed_at = datetime.now(UTC)
+    await db.flush()
+
+    # Record the outcome with the trust service (closes the trust loop)
+    from app.services.trust import TrustService
+
+    trust_service = TrustService()
+    await trust_service.record_outcome(
+        db,
+        task_id=str(task.id),
+        success=outcome_status == "success",
+        execution_ms=task.execution_ms,
+    )
+
+    return {
+        "message_id": message_id,
+        "status": task.status,
+        "updated_at": task.completed_at.isoformat() if task.completed_at else None,
+    }
 
 
 @router.get("", response_model=MessageListResponse)

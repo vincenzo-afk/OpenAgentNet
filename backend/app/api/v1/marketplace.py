@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_subject, get_db_session, require_scope
+from app.core.dependencies import get_current_subject, get_db_session, get_optional_subject, require_scope
 from app.schemas.marketplace import (
     MarketplaceListingRequest,
     MarketplaceListingResponse,
@@ -37,7 +37,7 @@ async def create_listing(
 async def get_listing(
     listing_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    _payload: Annotated[dict, Depends(get_current_subject)],
+    _payload: Annotated[dict | None, Depends(get_optional_subject)],
 ):
     listing = await marketplace_service.get_listing(db, listing_id)
     if not listing:
@@ -48,7 +48,7 @@ async def get_listing(
 @router.get("/listings", response_model=MarketplaceSearchResponse)
 async def search_listings(
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    _payload: Annotated[dict, Depends(get_current_subject)],
+    _payload: Annotated[dict | None, Depends(get_optional_subject)],
     capability: str | None = None,
     min_trust_score: float | None = None,
     limit: int = 20,
