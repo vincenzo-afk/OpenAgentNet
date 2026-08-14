@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db_session, require_scope
 from app.schemas.negotiation import (
     NegotiationDetail,
+    NegotiationListResponse,
     NegotiationProposalRequest,
     NegotiationProposalResponse,
     NegotiationRespondRequest,
@@ -38,6 +39,28 @@ async def create_proposal(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+@router.get("", response_model=NegotiationListResponse)
+async def list_negotiations(
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("negotiate:read"))],
+    status_filter: str | None = Query(None, alias="status"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    agent_id = payload.get("agent_id", "")
+    try:
+        result = await negotiation_service.list_negotiations(
+            db,
+            agent_id=agent_id,
+            status_filter=status_filter,
+            limit=limit,
+            offset=offset,
+        )
+        return NegotiationListResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.post("/{negotiation_id}/respond", response_model=NegotiationResponseSchema)
 async def respond_to_negotiation(
     negotiation_id: str,
@@ -46,10 +69,12 @@ async def respond_to_negotiation(
     payload: Annotated[dict, Depends(require_scope("negotiate:respond"))],
 ):
     try:
+        actor_id = payload.get("agent_id", "")
         result = await negotiation_service.respond(
             db,
             negotiation_id=negotiation_id,
             response=body.model_dump(),
+            actor_id=actor_id,
         )
         return NegotiationResponseSchema(**result)
     except ValueError as e:

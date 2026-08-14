@@ -32,7 +32,18 @@ class NegotiationResponseSchema(BaseModel):
     negotiation_id: str
     status: str
     session_token: str | None = None
+    round_number: int
     updated_at: datetime
+
+
+class NegotiationRoundDetail(BaseModel):
+    id: int
+    round_number: int
+    actor_id: str
+    role: str
+    decision: str
+    proposal: dict[str, Any]
+    occurred_at: datetime | None = None
 
 
 class NegotiationDetail(BaseModel):
@@ -45,8 +56,16 @@ class NegotiationDetail(BaseModel):
     response: dict[str, Any] | None = None
     session_token: str | None = None
     round_count: int
+    rounds: list[NegotiationRoundDetail] = []
     expires_at: datetime
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class NegotiationListResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    negotiations: list[NegotiationDetail]

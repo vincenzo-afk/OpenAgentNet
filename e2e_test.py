@@ -15,6 +15,11 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 
 BASE = "http://127.0.0.1:8000/v1"
 
+try:
+    demo_token = open("/tmp/demo_token.txt").read().strip()
+except FileNotFoundError:
+    demo_token = ""
+
 
 def main() -> int:
     failures: list[str] = []
@@ -178,29 +183,81 @@ def main() -> int:
         resp = c.get("/memory", headers=auth)
         check("memory list", resp)
 
-        # 11. Negotiations (start one)
+        # 11. Negotiations (Phase 3 state machine)
+        # Register a dedicated summarizer agent so both participants hold valid
+        # tokens; e2e agent proposes, target counters, target accepts.
+        summary_capabilities = [
+            {
+                "name": "summarization",
+                "description": "Summarize long text",
+                "input_schema": {"type": "object", "properties": {"text": {"type": "string"}}},
+                "output_schema": {"type": "object", "properties": {"summary": {"type": "string"}}},
+                "tags": [],
+                "latency_estimate_ms": None,
+                "cost_estimate": None,
+            }
+        ]
+        target_private_key = ed25519.Ed25519PrivateKey.generate()
+        target_public_bytes = target_private_key.public_key().public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw
+        )
+        summary_manifest = dict(manifest)
+        summary_manifest["name"] = f"e2e-target-summarizer-{random.randbytes(3).hex()}"
+        summary_manifest["public_key"] = base64.b64encode(target_public_bytes).decode()
+        summary_manifest["capabilities"] = summary_capabilities
+        payload_bytes = encode_canonical_json(summary_manifest)
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        signature = target_private_key.sign(payload_bytes + timestamp.encode())
+        proof = {"timestamp": timestamp, "signature": base64.urlsafe_b64encode(signature).decode()}
+        resp = c.post("/agents/register", json={"identity": summary_manifest, "proof": proof})
+        check("register target", resp, 201)
+        target_summarizer = resp.json().get("agent_id") if resp.status_code == 201 else None
+        target_token = resp.json().get("api_token") if resp.status_code == 201 else None
+        target_auth = {"Authorization": f"Bearer {target_token}"} if target_token else {}
         resp = c.post(
             "/negotiations",
             headers=auth,
             json={
-                "target_id": agent_id,
+                "target_id": target_summarizer or agent_id,
                 "capability": "summarization",
                 "proposed_payload_schema": {
                     "type": "object",
                     "properties": {"text": {"type": "string"}},
                 },
-                "ttl_seconds": 60,
+                "ttl_seconds": 300,
             },
         )
-        print("negotiation create:", resp.status_code, resp.text[:300])
-        neg_id = resp.json()["negotiation_id"] if resp.status_code == 201 else None
-        if neg_id:
+        print("negotiation create:", resp.status_code, resp.text[:200])
+        neg_id = resp.json().get("negotiation_id") if resp.status_code == 201 else None
+        if neg_id and target_summarizer:
+            # Target counters with an alternative price
+            resp = c.post(
+                f"/negotiations/{neg_id}/respond",
+                headers=target_auth,
+                json={
+                    "decision": "countered",
+                    "counter_proposal": {"unit_price": 0.02},
+                },
+            )
+            print("negotiation counter:", resp.status_code, resp.json().get("status") if resp.status_code == 200 else resp.text[:100])
+            # Requester cannot decline its own counter-party negotiation (only participants can, but requester declining own deal is still a participant)
             resp = c.post(
                 f"/negotiations/{neg_id}/respond",
                 headers=auth,
+                json={"decision": "declined"},
+            )
+            print("negotiation decline (wrong side, expect 400):", resp.status_code)
+            resp = c.post(
+                f"/negotiations/{neg_id}/respond",
+                headers=target_auth,
                 json={"decision": "accepted"},
             )
-            print("negotiation respond:", resp.status_code, resp.text[:200])
+            print("negotiation accept:", resp.status_code, resp.json().get("status") if resp.status_code == 200 else resp.text[:100])
+            resp = c.get(f"/negotiations/{neg_id}", headers=auth)
+            print("negotiation get:", resp.status_code, "rounds:", len(resp.json().get("rounds", [])) if resp.status_code == 200 else "-")
+            resp = c.get("/negotiations?limit=10", headers=auth)
+            print("negotiation list:", resp.status_code, "total:", resp.json().get("total") if resp.status_code == 200 else "-")
+        elif neg_id:
             resp = c.get(f"/negotiations/{neg_id}", headers=auth)
             print("negotiation get:", resp.status_code)
 

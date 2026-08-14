@@ -100,3 +100,26 @@ Plan: /home/ubuntu/plan.md (approved). Working top-down: P2 -> P3 -> P4 -> P5 ->
 - seed_demo: PYTHONPATH=. python3 scripts/seed_demo.py (in backend dir); saves token to /tmp/demo_token.txt; re-registers fresh key pairs each run => different agent IDs each run; demo traffic also seeds listing/endorse via old token idempotent-ish.
 - check_phase2.py: cd backend && OPERATOR_SECRET=ops-secret python3 scripts/check_phase2.py (full pipeline, re-seeds first).
 - P2 check expected outputs (from last run): trust record 200; endorse 201; dup 400; dispute 201; list must be 200; mark-review 200 under_review; resolve no-secret 401; resolve 200 resolved_valid; penalty +0.15; events 200 incl dispute_filed+dispute_resolved; mutual endorse 201 + anomaly events.
+
+## PHASE 2 — COMPLETE & PUSHED
+- Fixed: trust.py route order (literal /disputes routes BEFORE /{agent_id} catch-all); trust service lazy TrustRecord on endorsement receipt; get_events anomaly support without record; JWT key paths absolute via Path(__file__) chains (fixes pytest 24 pass from repo root).
+- check_phase2.py ALL PASSING; e2e green; pushed to GitHub.
+
+## PHASE 3 — SERVICE CODE DONE, check_phase3.py ALL PASSING (not yet committed)
+- app/models/negotiation_round.py (NegotiationRound: negotiation_id, round_number, actor_id, role requester|target, decision proposed|accepted|countered|declined, proposal JSONB, occurred_at). Check constraints at table level. Migration 006_negotiation_history.py (down_revision=005), APPLIED. models/__init__.py exports it.
+- app/services/negotiation/service.py rewritten: VALID_TRANSITIONS state machine (proposed/countered -> countered|accepted|declined|expired; terminal empty); MAX_ROUNDS=3 via negotiation.round_count; _expire_due auto-expiry on respond; participants-only respond check (requester OR target); NATS events via nats_client.publish_event('negotiation', {type: negotiation_created/negotiation_countered/negotiation_acceptedd/negotiation_declinedd, negotiation_id, ...}); session_token issued on accept; response stores full counter_proposal/agreed_constraints; get_negotiation returns rounds history; list_negotiations(agent, status, limit, offset) w/ total.
+- app/api/v1/negotiations.py: GET '' list (before /{id} catch-all), respond passes actor_id from JWT.
+- schemas/negotiation.py: added round_number to NegotiationResponseSchema, NegotiationRoundDetail, NegotiationListResponse.
+- scripts/check_phase3.py ALL PASSING (creates 2 fresh agents itself — do NOT reuse demo_token, which belongs to stale agent 6a040e9b).
+- e2e_test.py updated negotiation section: e2e agent proposes to latest demo-summarizer using demo_token for target auth; counter->decline-wrong-side(400)->accept->get detail+rounds->list. demo_token loaded from /tmp/demo_token.txt (fallback '') at module top.
+- NATS: OAN_EVENTS stream shows 32 msgs incl negotiation_* events (fetch on JetStreamContext works; my earlier 'no attribute fetch' error was a usage bug).
+- TODO: commit+push Phase 3; then Phase 4.
+
+## ENV REMINDERS (all phases)
+- Server: cd /home/ubuntu/OpenAgentNet/backend && nohup env OPERATOR_SECRET=ops-secret uvicorn app.main:app --port 8000 > /tmp/backend.log 2>&1 & ; kill $(pgrep -f "uvicorn app.main:app --port 8000")
+- Migrations: cd backend && DATABASE_URL=postgresql://openagentnet:openagentnet@localhost:5432/openagentnet alembic upgrade head
+- pytest 24 tests; e2e: python3 e2e_test.py; redis-cli FLUSHDB between runs; PYTHONPATH=. for scripts.
+- Git: git -c user.name="vincenzo-afk" -c user.email="itsmebk2007@gmail.com" commit/push origin main.
+- Demo agents go 'inactive' (heartbeat worker); discover only returns active agents.
+- parse_agent_id handles uuid.UUID + str + did:oan: prefix.
+- Route order: literal routes BEFORE /{param} catch-alls (e2e fixed in trust.py; negotiations.py already ordered correctly).

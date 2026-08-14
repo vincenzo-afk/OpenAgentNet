@@ -19,6 +19,7 @@ export default async function DashboardPage() {
           <Link href="/">Agents</Link>
           <Link href="/marketplace">Marketplace</Link>
           <Link href="/messages">Messages</Link>
+          <Link href="/negotiations">Negotiations</Link>
         </nav>
       </header>
 
