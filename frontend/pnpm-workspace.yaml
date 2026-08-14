@@ -1,2 +1,2 @@
 allowBuilds:
-  unrs-resolver: false
+  unrs-resolver: set this to true or false
