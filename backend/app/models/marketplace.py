@@ -24,6 +24,8 @@ class MarketplaceListing(Base):
     pricing: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     sla: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     tiers: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    access_tier: Mapped[str] = mapped_column(Text, nullable=False, default="free")
+    tier_details: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     view_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -31,3 +33,13 @@ class MarketplaceListing(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
+
+
+class MarketplaceUsage(Base):
+    __tablename__ = "marketplace_usage"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    listing_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

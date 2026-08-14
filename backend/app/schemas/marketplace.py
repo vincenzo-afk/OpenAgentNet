@@ -12,6 +12,8 @@ class MarketplaceListingRequest(BaseModel):
     pricing: dict[str, Any] = {}
     sla: dict[str, Any] = {}
     tiers: list[dict[str, Any]] = []
+    access_tier: str = "free"
+    tier_details: dict[str, Any] = {}
     is_public: bool = True
 
 
@@ -23,6 +25,8 @@ class MarketplaceListingResponse(BaseModel):
     pricing: dict[str, Any]
     sla: dict[str, Any]
     tiers: list[dict[str, Any]]
+    access_tier: str
+    tier_details: dict[str, Any]
     is_public: bool
     is_featured: bool
     view_count: int
@@ -38,3 +42,16 @@ class MarketplaceSearchResponse(BaseModel):
     limit: int
     offset: int
     items: list[MarketplaceListingResponse]
+
+
+class TierUpdateRequest(BaseModel):
+    access_tier: str
+    tier_details: dict[str, Any] | None = None
+
+
+class BillingWebhookRequest(BaseModel):
+    listing_id: str
+    agent_id: str
+    calls: int = 1
+    event_type: str = "usage"
+    idempotency_key: str | None = None

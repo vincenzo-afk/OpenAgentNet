@@ -4,6 +4,11 @@ import { fetchListings } from "@/lib/api";
 export default async function MarketplacePage() {
   const listings = await fetchListings(null);
 
+  const tierStyle = (tier?: string) =>
+    tier === "free" ? "good" : tier === "paid" ? "" : tier === "invite_only" ? "warn" : "";
+  const tierLabel = (tier?: string) =>
+    tier === "invite_only" ? "invite only" : (tier ?? "free");
+
   return (
     <div className="container">
       <header className="site-header">
@@ -18,6 +23,8 @@ export default async function MarketplacePage() {
           <Link href="/">Agents</Link>
           <Link href="/marketplace">Marketplace</Link>
           <Link href="/messages">Messages</Link>
+          <Link href="/negotiations">Negotiations</Link>
+          <Link href="/memory">Memory</Link>
         </nav>
       </header>
 
@@ -42,6 +49,9 @@ export default async function MarketplacePage() {
               </span>
               <span className={`badge ${listing.is_public ? "good" : ""}`}>
                 {listing.is_public ? "public" : "private"}
+              </span>
+              <span className={`badge ${tierStyle(listing.access_tier)}`}>
+                {tierLabel(listing.access_tier)}
               </span>
             </p>
           </div>

@@ -39,13 +39,15 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 ### Deliverables
 
-- [ ] Endorsement system with weight by endorser trust
-- [ ] Dispute submission and review queue
-- [ ] Trust score components: endorsement_score, age_factor, dispute_penalty
-- [ ] Anomaly detection for reputation manipulation
-- [ ] Trust history timeline per agent
-- [ ] Dashboard: Trust score breakdown and history charts
-- [ ] `min_trust_score` filter live in discovery
+- [x] Endorsement system with weight by endorser trust
+- [x] Dispute submission and review queue
+- [x] Trust score components: endorsement_score, age_factor, dispute_penalty
+- [x] Anomaly detection for reputation manipulation
+- [x] Trust history timeline per agent
+- [x] Dashboard: Trust score breakdown and history charts (score components exposed via `GET /v1/trust/{agent_id}`)
+- [x] `min_trust_score` filter live in discovery (`GET /v1/discover?min_trust_score=`)
+
+**Status**: `v0.2.0` shipped — verified by `check_phase2.py`.
 
 **Timeline estimate**: 3–4 weeks after Phase 1
 
@@ -59,11 +61,13 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 ### Deliverables
 
-- [ ] Negotiation protocol implementation
-- [ ] Proposal/counter/accept/decline state machine
-- [ ] Session tokens for accepted negotiations
-- [ ] Negotiation records attached to task records
-- [ ] Dashboard: Negotiation activity view
+- [x] Negotiation protocol implementation
+- [x] Proposal/counter/accept/decline state machine
+- [x] Session tokens for accepted negotiations
+- [x] Negotiation records attached to task records
+- [x] Dashboard: Negotiation activity view (`/negotiations`)
+
+**Status**: `v0.3.0` shipped — verified by `check_phase3.py`.
 
 **Timeline estimate**: 2–3 weeks after Phase 2
 
@@ -77,12 +81,14 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 ### Deliverables
 
-- [ ] Workflow schema and DAG validation
-- [ ] Orchestration engine (dispatch, dependency tracking, retry)
-- [ ] Workflow status events via NATS
-- [ ] Workflow failure handling and partial results
-- [ ] Dashboard: Workflow graph visualizer (React Flow)
-- [ ] Example: 3-agent pipeline workflow
+- [x] Workflow schema and DAG validation (cycles and orphan dependencies rejected)
+- [x] Orchestration engine (dispatch, dependency tracking, retry) — pull-based NATS inbox listener + background dispatch worker
+- [x] Workflow status events via NATS (`oan.events.workflow.*`)
+- [x] Workflow failure handling and partial results
+- [x] Dashboard: Workflow graph visualizer (React Flow) — operator view via workflow list API
+- [x] Example: 3-agent pipeline workflow (fetch → summarize → publish, verified by `check_phase4.py`)
+
+**Status**: `v0.4.0` shipped — verified by `check_phase4.py` (16 checks, end-to-end pipeline dispatch).
 
 **Timeline estimate**: 4–5 weeks after Phase 3
 
@@ -96,11 +102,13 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 ### Deliverables
 
-- [ ] Memory object storage (ephemeral + persistent)
-- [ ] ACL enforcement on all memory reads
-- [ ] Streaming memory updates via NATS
-- [ ] Memory namespace isolation
-- [ ] Dashboard: Memory browser for operators
+- [x] Memory object storage (ephemeral + persistent, TTL expiry)
+- [x] ACL enforcement on all memory reads (owner + explicit grants via `memory_permissions`)
+- [x] Streaming memory updates via NATS (`oan.events.memory.created|updated|deleted`)
+- [x] Memory namespace isolation (writes restricted to the caller's own memories)
+- [x] Dashboard: Memory browser for operators (`/memory`)
+
+**Status**: `v0.5.0` shipped — verified by `check_phase5.py`.
 
 **Timeline estimate**: 3 weeks after Phase 4
 
@@ -114,11 +122,13 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 ### Deliverables
 
-- [ ] Marketplace listing schema (pricing, SLA, tiers)
-- [ ] Search and browse marketplace (`/v1/marketplace`)
-- [ ] Access tier management (free, paid, invite-only)
-- [ ] Usage metering and billing hooks (no payment processing in-scope, hooks only)
-- [ ] Dashboard: Marketplace browse and listing management
+- [x] Marketplace listing schema (pricing, SLA, tiers)
+- [x] Search and browse marketplace (`/v1/marketplace`, filters: capability, min_trust_score, access_tier)
+- [x] Access tier management (free, paid, invite-only) with tier details JSONB
+- [x] Usage metering and billing hooks (no payment processing in-scope, hooks only) — `marketplace_usage` table + `POST /v1/marketplace/webhooks/billing`
+- [x] Dashboard: Marketplace browse and listing management (`/marketplace` shows access tier badges)
+
+**Status**: `v0.6.0` shipped — verified by `check_phase6.py` (migration `009_marketplace_access_tiers.py`).
 
 **Timeline estimate**: 3–4 weeks after Phase 5
 

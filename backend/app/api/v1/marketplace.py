@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_subject, get_db_session, get_optional_subject, require_scope
 from app.schemas.marketplace import (
+    BillingWebhookRequest,
     MarketplaceListingRequest,
     MarketplaceListingResponse,
     MarketplaceSearchResponse,
+    TierUpdateRequest,
 )
 from app.services.marketplace import MarketplaceService
 
@@ -51,11 +53,17 @@ async def search_listings(
     _payload: Annotated[dict | None, Depends(get_optional_subject)],
     capability: str | None = None,
     min_trust_score: float | None = None,
+    access_tier: str | None = None,
     limit: int = 20,
     offset: int = 0,
 ):
     result = await marketplace_service.search_listings(
-        db, capability=capability, min_trust_score=min_trust_score, limit=limit, offset=offset
+        db,
+        capability=capability,
+        min_trust_score=min_trust_score,
+        access_tier=access_tier,
+        limit=limit,
+        offset=offset,
     )
     return MarketplaceSearchResponse(**result)
 
@@ -70,6 +78,57 @@ async def update_listing(
         agent_id = payload.get("agent_id", "")
         result = await marketplace_service.update_listing(db, agent_id, body.model_dump())
         return MarketplaceListingResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.put("/listings/{listing_id}/tier", response_model=MarketplaceListingResponse)
+async def update_tier(
+    listing_id: str,
+    body: TierUpdateRequest,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("marketplace:update"))],
+):
+    agent_id = payload.get("agent_id", "")
+    existing = await marketplace_service.get_listing(db, listing_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
+    if existing["agent_id"] != agent_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not the listing owner")
+    try:
+        result = await marketplace_service.set_access_tier(
+            db, agent_id, body.access_tier, body.tier_details
+        )
+        return MarketplaceListingResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/listings/{listing_id}/metering")
+async def get_metering(
+    listing_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    _payload: Annotated[dict | None, Depends(get_optional_subject)],
+    agent_id: str | None = None,
+):
+    try:
+        result = await marketplace_service.get_metering(db, listing_id, agent_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/webhooks/billing", status_code=status.HTTP_202_ACCEPTED)
+async def billing_webhook(
+    body: BillingWebhookRequest,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    _payload: Annotated[dict | None, Depends(get_optional_subject)],
+):
+    try:
+        result = await marketplace_service.record_usage(
+            db, body.listing_id, body.agent_id, body.calls
+        )
+        return {**result, "event_type": body.event_type, "accepted": True}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
