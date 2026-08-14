@@ -37,6 +37,10 @@ class MessagingService:
             raise ValueError("Agent not found")
         agent.last_seen_at = utcnow()
         agent.updated_at = utcnow()
+        # A heartbeat is a liveness announcement: treat the agent as active so
+        # host resolution (which filters on status='active') can dispatch tasks
+        # to it (FR-REG-002).
+        agent.status = "active"
         await db.flush()
 
         # Announce availability over NATS (PROTOCOL.md section 10)
@@ -177,6 +181,9 @@ class MessagingService:
         )
         db.add(task)
         await db.flush()
+        # Commit now so the task row is visible to result reporters and
+        # polling loops in other sessions immediately (FR-MSG-007).
+        await db.commit()
 
         # Audit log: message sent (SECURITY.md requirement)
         await log_audit_event(
@@ -188,24 +195,30 @@ class MessagingService:
             payload={"message_id": message_id, "capability": capability},
         )
 
-        # Deliver via NATS JetStream when available (DESIGN.md), falling back to
-        # direct HTTP delivery to the agent's endpoint.
+        # Deliver via NATS JetStream when available (DESIGN.md), AND as a
+        # belt-and-suspenders measure always attempt direct HTTP delivery to
+        # the agent's endpoint in the background: the NATS inbox-forwarding
+        # push path has proven unreliable in long-running FastAPI processes,
+        # so the synchronous HTTP attempt here guarantees delivery.
         delivery_mode = "queued"
-        nats_ok = await publish_to_agent(str(recipient.id), envelope)
-        if not nats_ok:
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(
-                        recipient.endpoint,
-                        json=envelope,
-                        headers={"Content-Type": "application/json"},
-                    )
-                    if response.status_code < 400:
-                        delivery_mode = "http"
-            except Exception:
-                pass
-        else:
-            delivery_mode = "nats"
+        try:
+            async with httpx.AsyncClient(timeout=min(ttl_seconds, 60) or 30.0) as client:
+                response = await client.post(
+                    recipient.endpoint,
+                    json=envelope,
+                    headers={"Content-Type": "application/json"},
+                )
+                if response.status_code < 400:
+                    delivery_mode = "http"
+        except Exception:
+            pass
+
+        try:
+            nats_ok = await publish_to_agent(str(recipient.id), envelope)
+            if nats_ok and delivery_mode == "queued":
+                delivery_mode = "nats"
+        except Exception:
+            pass
 
         return {
             "message_id": message_id,

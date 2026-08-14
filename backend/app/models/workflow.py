@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Text
+from sqlalchemy import CheckConstraint, DateTime, Index, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -52,4 +52,7 @@ class WorkflowTask(Base):
     result: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    __table_args__ = (Index("idx_workflow_tasks_workflow", "workflow_id"),)
+    __table_args__ = (
+        Index("idx_workflow_tasks_workflow", "workflow_id"),
+        UniqueConstraint("workflow_id", "node_id", name="uq_workflow_task_node"),
+    )

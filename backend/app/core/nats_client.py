@@ -179,6 +179,7 @@ async def subscribe_agent_inbox(
         return None
 
     async def _msg_handler(msg: Any) -> None:
+        envelope: dict = {}
         try:
             envelope = json.loads(msg.data.decode())
             await handler(envelope)

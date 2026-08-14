@@ -100,6 +100,8 @@ class TrustService:
         if not record:
             record = TrustRecord(agent_id=agent_id)
             db.add(record)
+            # Flush so the default column values (0) are populated before use.
+            await db.flush()
 
         record.total_tasks += 1
         if success:

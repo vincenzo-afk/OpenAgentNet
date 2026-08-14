@@ -16,6 +16,8 @@ Three maintenance loops run for the lifetime of the FastAPI process:
 """
 from __future__ import annotations
 
+import uuid
+
 import asyncio
 import json
 import logging
@@ -29,7 +31,6 @@ from app.core.nats_client import (
     connect_nats,
     disconnect_nats,
     is_nats_available,
-    subscribe_agent_inbox,
 )
 from app.models.agent import Agent
 from app.models.task import Task
@@ -101,8 +102,17 @@ async def task_delivery_worker(session_factory) -> None:
                         task.error_message = "Recipient agent no longer exists"
                         task.completed_at = utcnow()
                         continue
+                    if agent.status != "active":
+                        task.status = "failed"
+                        task.error_code = "RECIPIENT_INACTIVE"
+                        task.error_message = "Recipient agent is inactive"
+                        task.completed_at = utcnow()
+                        continue
                     outcome = await deliver_task_http(task, agent.endpoint)
-                    task.status = outcome if outcome == "delivered" else "pending"
+                    # 'delivered' means the agent accepted the envelope over
+                    # HTTP; map it to 'running' — 'delivered' is not a valid
+                    # tasks.status (check_task_status) and the commit fails.
+                    task.status = "running" if outcome == "delivered" else "pending"
                 if tasks:
                     await db.commit()
         except Exception:
@@ -195,24 +205,110 @@ async def deliver_task_http_from_envelope(envelope: dict, endpoint: str) -> str:
 
 
 async def nats_inbox_listener(session_factory) -> None:
-    """Subscribe to the agent-inbox wildcard and forward envelopes to HTTP.
+    """Forward task envelopes from the agent-inbox JetStream stream to HTTP.
+
+    Uses a durable PULL subscription (``inbox_listener``) rather than a push
+    subscription: in practice the JetStream push-callback path was observed to
+    stall silently in long-running FastAPI processes, while pull consumers are
+    deterministic and self-healing on reconnect.
 
     This keeps running even when NATS is initially unavailable; it reconnects
-    opportunistically every 15 seconds.
+    opportunistically every few seconds.
     """
+    sub = None
+    handler = None
     while True:
         try:
             await connect_nats()
-            if is_nats_available():
-                await subscribe_agent_inbox(
-                    "+",
-                    await inbox_forwarding_handler(session_factory),
-                    wildcard=True,
-                )
+            if not is_nats_available():
+                sub = None
+                await asyncio.sleep(5)
+                continue
+            from app.core.nats_client import _jetstream
+
+            if handler is None:
+                handler = await inbox_forwarding_handler(session_factory)
+            if sub is None:
+                try:
+                    sub = await _jetstream.pull_subscribe(
+                        "oan.messages.+.inbox",
+                        durable="inbox_listener_worker",
+                        stream="OAN_TASKS",
+                    )
+                    pass
+                except Exception:
+                    sub = None
+                    await asyncio.sleep(5)
+                    continue
+            try:
+                messages = await sub.fetch(batch=20, timeout=2)
+            except Exception:
+                # No messages yet (timeout is expected between bursts).
+                messages = []
+            for msg in messages:
+                try:
+                    envelope = json.loads(msg.data.decode())
+                    await handler(envelope)
+                except Exception:
+                    logger.exception("Error forwarding inbox envelope")
+                finally:
+                    try:
+                        await msg.ack()
+                    except Exception:
+                        pass
         except Exception:
             logger.exception("NATS inbox listener error")
-        await asyncio.sleep(15)
+            sub = None
+        await asyncio.sleep(0.5)
 
+
+async def workflow_dispatch_worker(session_factory=None) -> None:
+    """Phase 4: dispatch pending workflows (topological engine) on a schedule.
+
+    Workflows created via POST /workflows are stored with status ``pending``;
+    this worker picks them up and runs the same dispatch engine that the
+    handler used to start as a fire-and-forget task. A worker loop is used
+    because per-request background tasks were not reliably executed by the
+    framework's request teardown.
+    """
+    from app.core.database import get_session_factory
+    from app.models.workflow import Workflow
+    from app.services.orchestration import OrchestrationService
+
+    factory = session_factory or get_session_factory()
+    # Run the engine on the MAIN event loop; asyncpg connections are bound to
+    # it and cannot be reused from asyncio.run in worker threads.
+    in_flight: set[uuid.UUID] = set()
+
+    while True:
+        try:
+            async with factory() as db:
+                pending_result = await db.execute(
+                    select(Workflow.id).where(Workflow.status == "pending").limit(8)
+                )
+                pending_ids = [row[0] for row in pending_result.all()]
+            for workflow_id in pending_ids:
+                if workflow_id not in in_flight:
+                    in_flight.add(workflow_id)
+                    task = asyncio.create_task(
+                        _dispatch_engine(in_flight, workflow_id)
+                    )
+                    in_flight.discard(workflow_id) if task.done() else None
+        except Exception:
+            logger.exception("Workflow dispatch worker iteration failed")
+        await asyncio.sleep(2)
+
+
+async def _dispatch_engine(in_flight: set, workflow_id: uuid.UUID) -> None:
+    """Run the dispatch engine on the main loop and track completion."""
+    from app.services.orchestration import OrchestrationService
+
+    try:
+        await OrchestrationService()._run_workflow(None, workflow_id)
+    except Exception:
+        logger.exception("Workflow dispatch engine failed for %s", workflow_id)
+    finally:
+        in_flight.discard(workflow_id)
 
 async def start_background_workers(session_factory=None) -> None:
     """Kick off all maintenance loops."""
@@ -223,6 +319,7 @@ async def start_background_workers(session_factory=None) -> None:
     asyncio.create_task(ttl_expiry_worker(factory))
     asyncio.create_task(heartbeat_worker(factory))
     asyncio.create_task(nats_inbox_listener(factory))
+    asyncio.create_task(workflow_dispatch_worker(factory))
     try:
         await connect_nats()
     except Exception:

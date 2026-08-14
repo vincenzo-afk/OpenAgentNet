@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -107,6 +107,7 @@ async def report_task_result(
         task.execution_ms = int(body["execution_ms"])
     task.completed_at = datetime.now(UTC)
     await db.flush()
+    await db.commit()
 
     # Record the outcome with the trust service (closes the trust loop)
     from app.services.trust import TrustService
