@@ -53,6 +53,29 @@ async def read_memory(
     return MemoryObjectResponse(**memory)
 
 
+@router.put("/{memory_id}", response_model=MemoryObjectResponse)
+async def update_memory(
+    memory_id: str,
+    body: MemoryWriteRequest,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("memory:write"))],
+):
+    """Update an existing memory object (owner only)."""
+    agent_id = payload.get("agent_id", "")
+    try:
+        result = await memory_service.update_memory(
+            db,
+            agent_id=agent_id,
+            memory_id=memory_id,
+            data=body.data,
+            data_type=body.data_type,
+            permissions=[p.model_dump() for p in body.permissions] if body.permissions else None,
+        )
+        return MemoryObjectResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
 @router.get("", response_model=MemoryListResponse)
 async def list_memory(
     db: Annotated[AsyncSession, Depends(get_db_session)],

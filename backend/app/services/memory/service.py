@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.identifiers import parse_agent_id
+from app.core.nats_client import publish_event
 from app.models.memory import MemoryObject, MemoryPermission
 
 
@@ -28,6 +29,21 @@ class MemoryService:
         ephemeral: bool = False,
         ttl_seconds: int | None = None,
     ) -> dict[str, Any]:
+        # Namespace isolation (Phase 5 deliverable): an agent may only write
+        # memories into its own namespace space. When the namespace is
+        # namespaced by agent id (``agent:<agent_id>``) it must match the
+        # requesting agent; existing memories may never be hijacked.
+        resolved_owner = parse_agent_id(owner_agent_id)
+        if not resolved_owner:
+            raise ValueError("Invalid agent_id")
+        requested_ns_agent = str(resolved_owner)
+        if str(namespace).strip().lower().startswith("agent:"):
+            ns_owner = str(namespace).strip()[6:].strip().lower()
+            if ns_owner != requested_ns_agent:
+                raise ValueError(
+                    "Namespace isolation violation: agent may only write to its own namespace"
+                )
+
         # Check for existing memory with same owner/namespace/key
         result = await db.execute(
             select(MemoryObject).where(
@@ -40,6 +56,8 @@ class MemoryService:
 
         if existing:
             # Update existing memory
+            if str(existing.owner_agent_id) != requested_ns_agent:
+                raise ValueError("Memory namespace isolation: not owned by requesting agent")
             existing.data = data
             existing.data_type = data_type
             existing.is_ephemeral = ephemeral
@@ -66,6 +84,19 @@ class MemoryService:
             db.add(memory)
             await db.flush()
 
+        # Stream the new memory object over NATS (Phase 5 deliverable)
+        await publish_event(
+            "memory.created",
+            {
+                "memory_id": str(memory.id),
+                "namespace": memory.namespace,
+                "key": memory.key,
+                "owner_agent_id": str(memory.owner_agent_id),
+                "version": memory.version,
+                "timestamp": utcnow().isoformat(),
+            },
+        )
+
         # Add permissions if provided
         if permissions:
             for perm in permissions:
@@ -86,6 +117,20 @@ class MemoryService:
                     db.add(permission)
 
         await db.flush()
+
+        # Stream the memory update over NATS (Phase 5 deliverable)
+        await publish_event(
+            "memory.updated",
+            {
+                "memory_id": str(memory.id),
+                "namespace": memory.namespace,
+                "key": memory.key,
+                "owner_agent_id": str(memory.owner_agent_id),
+                "version": memory.version,
+                "timestamp": utcnow().isoformat(),
+            },
+        )
+
         return self._memory_to_dict(memory)
 
     async def read_memory(
@@ -98,9 +143,10 @@ class MemoryService:
         if not memory:
             return None
 
-        # Check access: owner or has permission
-        resolved_owner = str(memory.owner_agent_id)
-        if resolved_owner != agent_id and str(parse_agent_id(agent_id)) != resolved_owner:
+        # ACL enforcement (Phase 5 deliverable): only the owner or an
+        # explicitly granted agent may read a memory object.
+        owner_uuid = parse_agent_id(agent_id)
+        if str(memory.owner_agent_id) != str(owner_uuid or agent_id) and str(memory.owner_agent_id) != agent_id:
             perm_result = await db.execute(
                 select(MemoryPermission).where(
                     MemoryPermission.memory_id == memory.id,
@@ -152,6 +198,59 @@ class MemoryService:
             "items": [self._memory_to_dict(m) for m in memories],
         }
 
+    async def update_memory(
+        self,
+        db: AsyncSession,
+        agent_id: str,
+        memory_id: str,
+        data: dict[str, Any] | None = None,
+        data_type: str | None = None,
+        permissions: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Update an existing memory object (owner only).
+
+        ``permissions`` replaces the current grant list when provided.
+        """
+        result = await db.execute(
+            select(MemoryObject).where(
+                MemoryObject.id == uuid.UUID(memory_id),
+                MemoryObject.owner_agent_id == parse_agent_id(agent_id),
+            )
+        )
+        memory = result.scalar_one_or_none()
+        if not memory:
+            raise ValueError("Memory not found or not owned by agent")
+
+        if data is not None:
+            memory.data = data
+        if data_type is not None:
+            memory.data_type = data_type
+        memory.version += 1
+        memory.updated_at = utcnow()
+
+        if permissions is not None:
+            # Replace grants: remove existing, add new
+            await db.execute(
+                MemoryPermission.__table__.delete().where(
+                    MemoryPermission.memory_id == memory.id
+                )
+            )
+            for perm in permissions:
+                grantee_id = parse_agent_id(perm["grantee_agent_id"])
+                if grantee_id is None:
+                    raise ValueError("Invalid grantee_agent_id")
+                db.add(
+                    MemoryPermission(
+                        memory_id=memory.id,
+                        grantee_agent_id=grantee_id,
+                        permission=perm.get("permission", "read"),
+                    )
+                )
+
+        await db.flush()
+        await db.commit()
+        return self._memory_to_dict(memory)
+
     async def delete_memory(self, db: AsyncSession, agent_id: str, memory_id: str) -> None:
         result = await db.execute(
             select(MemoryObject).where(
@@ -164,6 +263,17 @@ class MemoryService:
             raise ValueError("Memory not found or not owned by agent")
         await db.delete(memory)
         await db.flush()
+
+        # Stream the deletion over NATS (Phase 5 deliverable)
+        await publish_event(
+            "memory.deleted",
+            {
+                "memory_id": str(memory.id),
+                "namespace": memory.namespace,
+                "owner_agent_id": str(memory.owner_agent_id),
+                "timestamp": utcnow().isoformat(),
+            },
+        )
 
     def _memory_to_dict(self, memory: MemoryObject) -> dict[str, Any]:
         return {
