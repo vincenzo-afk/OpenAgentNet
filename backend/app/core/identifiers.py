@@ -62,6 +62,8 @@ def parse_agent_id(value: str | None) -> uuid.UUID | None:
     """
     if not value:
         return None
+    if isinstance(value, uuid.UUID):
+        return value
     raw = value.strip()
     if raw.startswith("did:oan:"):
         raw = raw[8:]

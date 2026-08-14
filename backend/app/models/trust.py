@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, Numeric, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Index, Integer, Numeric, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -73,6 +73,11 @@ class Dispute(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False, default="open")
     resolution_notes: Mapped[str | None] = mapped_column(Text)
     resolved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified: Mapped[bool | None] = mapped_column(
+        Boolean,
+        comment="True when resolved_valid, False when resolved_invalid, None when open",
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
@@ -84,4 +89,5 @@ class Dispute(Base):
             "status IN ('open', 'under_review', 'resolved_valid', 'resolved_invalid', 'withdrawn')",
             name="check_dispute_status",
         ),
+        Index("idx_disputes_status", "status"),
     )

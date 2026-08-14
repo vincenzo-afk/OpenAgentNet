@@ -50,6 +50,18 @@ class EndorsementResponse(BaseModel):
     created_at: datetime
 
 
+class DisputeListResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    disputes: list[DisputeResponse]
+
+
+class DisputeResolveRequest(BaseModel):
+    verdict: str  # valid | invalid | withdrawn
+    resolution_notes: str | None = None
+
+
 class DisputeRequest(BaseModel):
     reported_agent_id: str
     reason: str
@@ -61,6 +73,10 @@ class DisputeResponse(BaseModel):
     id: str
     reported_agent_id: str
     reporter_agent_id: str
+    task_id: str | None = None
     reason: str
+    evidence: dict[str, Any] = {}
     status: str
+    resolution_notes: str | None = None
+    reviewed_at: datetime | None = None
     created_at: datetime

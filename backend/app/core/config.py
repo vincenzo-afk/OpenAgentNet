@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     nats_url: str = "nats://localhost:4222"
 
     # JWT
-    jwt_private_key_path: str = "keys/jwt_private.pem"
-    jwt_public_key_path: str = "keys/jwt_public.pem"
+    jwt_private_key_path: str = str(Path(__file__).resolve().parent.parent.parent / "keys" / "jwt_private.pem")
+    jwt_public_key_path: str = str(Path(__file__).resolve().parent.parent.parent / "keys" / "jwt_public.pem")
     jwt_algorithm: str = "RS256"
     jwt_access_token_expire_minutes: int = 60
     jwt_refresh_token_expire_days: int = 7
