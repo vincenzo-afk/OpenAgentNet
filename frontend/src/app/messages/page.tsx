@@ -14,7 +14,10 @@ export default function MessagesPage() {
         <nav>
           <Link href="/">Agents</Link>
           <Link href="/marketplace">Marketplace</Link>
+          <Link href="/negotiations">Negotiations</Link>
+          <Link href="/memory">Memory</Link>
           <Link href="/messages">Messages</Link>
+          <Link href="/workflows">Workflows</Link>
         </nav>
       </header>
 

@@ -132,6 +132,7 @@ export default function MemoryPage() {
           <a href="/messages">Messages</a>
           <a href="/negotiations">Negotiations</a>
           <a href="/memory">Memory</a>
+          <a href="/workflows">Workflows</a>
         </nav>
       </header>
 

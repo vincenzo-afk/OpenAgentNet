@@ -17,28 +17,32 @@ def seed_pair() -> tuple[str, str, str]:
         cwd=os.path.dirname(os.path.abspath(__file__)) + "/..",
         check=True, capture_output=True,
     )
-    token = open("/tmp/demo_token.txt").read().strip()
-    auth = {"Authorization": f"Bearer {token}"}
+    # seed_demo saves per-agent tokens: act as the echo agent for endorsements
+    # and dispute filing (self-endorsement and self-flagging are rejected).
+    echo_token = open("/tmp/demo_echo_token.txt").read().strip()
+    token = open("/tmp/demo_summ_token.txt").read().strip()
+    auth = {"Authorization": f"Bearer {echo_token}"}
+    auth_summ = {"Authorization": f"Bearer {token}"}
     with httpx.Client(base_url=BASE, timeout=15) as client:
         echo_agents = client.get("/discover?capability=echo", headers=auth).json()["agents"]
         summ_agents = client.get("/discover?capability=summarization",
                                  headers=auth).json()["agents"]
     # seed_demo registers demo-echo + demo-summarizer (multiple runs may duplicate).
-    # The saved token belongs to the newest summarizer; discover returns agents
-    # newest-first, so the first matching entry of each capability pairs with it.
-    echo = next(a for a in echo_agents if a["name"] == "demo-echo")
-    summ = next(a for a in summ_agents if a["name"] == "demo-summarizer")
-    return echo["agent_id"], summ["agent_id"], token
+    # The saved token belongs to the newest pair; discovery lists agents oldest
+    # first, so pick the LAST matching entry of each capability.
+    echo = [a for a in echo_agents if a["name"] == "demo-echo"][-1]
+    summ = [a for a in summ_agents if a["name"] == "demo-summarizer"][-1]
+    return echo["agent_id"], summ["agent_id"], token, auth_summ
 
 
 def main() -> int:
-    echo_id, summ_id, token = seed_pair()
+    echo_id, summ_id, token, auth_summ = seed_pair()
     auth = {"Authorization": f"Bearer {token}"}
     fails = []
 
     with httpx.Client(base_url=BASE, timeout=20) as client:
         # 1. Trust record exists with components
-        r = client.get(f"/trust/{summ_id}", headers=auth)
+        r = client.get(f"/trust/{summ_id}", headers=auth_summ)
         print("trust record:", r.status_code)
         if r.status_code != 200:
             fails.append("trust get")
@@ -99,7 +103,9 @@ def main() -> int:
         # 8. Resolve with secret -> penalty applied
         r = client.post(
             f"/trust/disputes/{dispute_id}/resolve",
-            headers={**auth, "X-Operator-Secret": os.environ.get("OPERATOR_SECRET", "")},
+            # The server defaults to OPERATOR_SECRET=ops-secret (see docs/SETUP.md);
+            # the check falls back to that when the env var is unset.
+            headers={**auth, "X-Operator-Secret": os.environ.get("OPERATOR_SECRET", "ops-secret")},
             json={"verdict": "valid", "resolution_notes": "confirmed"},
         )
         print("resolve:", r.status_code, r.json().get("status"))
@@ -107,14 +113,14 @@ def main() -> int:
             fails.append("resolve")
 
         # 9. Trust record reflects penalty
-        r = client.get(f"/trust/{summ_id}", headers=auth)
+        r = client.get(f"/trust/{summ_id}", headers=auth_summ)
         comps = r.json()["components"]
         print("  dispute_penalty after valid verdict:", comps.get("dispute_penalty"))
         if not comps.get("dispute_penalty"):
             fails.append("penalty not applied")
 
         # 10. Trust timeline
-        r = client.get(f"/trust/{summ_id}/events", headers=auth)
+        r = client.get(f"/trust/{summ_id}/events", headers=auth_summ)
         print("events:", r.status_code, len(r.json().get("events", [])))
         types = [e["event_type"] for e in r.json().get("events", [])]
         if "dispute_filed" not in types or "dispute_resolved" not in types:
@@ -126,7 +132,7 @@ def main() -> int:
             "comment": "reciprocal",
         })
         print("mutual endorse:", r.status_code)
-        r = client.get(f"/trust/{echo_id}/events", headers=auth)
+        r = client.get(f"/trust/{echo_id}/events", headers=auth_summ)
         types = [e["event_type"] for e in r.json().get("events", [])]
         print("  anomaly events:", [t for t in types if t.startswith("anomaly") or "ring" in t])
 

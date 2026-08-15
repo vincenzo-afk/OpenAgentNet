@@ -18,14 +18,29 @@ This repository contains a **complete, working reference implementation** of the
 | Component | Path | Status |
 |---|---|---|
 | Protocol backend (FastAPI) | `backend/` | Complete — registry, discovery, messaging, tasks, trust, negotiations, workflows, memory, marketplace |
-| Database migrations | `backend/alembic/` | Complete — four migrations, tested against PostgreSQL |
+| Database migrations | `backend/alembic/` | Complete — nine migrations, tested against PostgreSQL |
 | NATS JetStream messaging | `backend/app/core/nats_client.py` | Complete — NATS-first delivery with HTTP fallback and envelope-hash deduplication |
 | Background workers | `backend/app/core/workers.py` | Complete — task delivery, TTL expiry, heartbeats, NATS inbox listener |
 | Example agents | `scripts/example_agents/` | Complete — Echo and Summarizer agents built on the bundled SDK |
 | Agent SDK | `scripts/sdk/oan.py` | Complete — single-file Python SDK for self-registration and messaging |
-| Dashboard frontend (Next.js) | `frontend/` | Complete — registry browser, agent detail, trust scores, message inspector |
+| Dashboard frontend (Next.js) | `frontend/` | Complete — registry browser, agent detail, trust scores, message inspector, memory browser, **workflows dashboard** |
 | CI | `.github/workflows/ci.yml` | Complete — unit tests, e2e smoke test, frontend build |
-| Protocol documentation | `docs/` | Complete — DESIGN, PROTOCOL, ARCHITECTURE, SECURITY, DATA_MODEL, ROADMAP |
+| Protocol documentation | `docs/` | Complete — DESIGN, PROTOCOL, ARCHITECTURE, SECURITY, DATA_MODEL, API, ROADMAP, FEATURES |
+
+## Protocol Milestones
+
+All six protocol phases are implemented, verified, and wired through the backend, dashboard, and tests.
+
+| Phase | Milestone | Feature | Verification |
+|---|---|---|---|
+| 1 | `v0.1.0` | Agent identity (did:oan:, Ed25519, proof-of-possession), registry, discovery | `backend/scripts/check_phase2.py` (also covers identity) |
+| 2 | `v0.2.0` | Trust & reputation — trust scoring, endorsements, disputes, audit log | `backend/scripts/check_phase2.py` |
+| 3 | `v0.3.0` | Negotiation — signed proposal/counter-offer sessions, commitment | `backend/scripts/check_phase3.py` |
+| 4 | `v0.4.0` | Orchestration — DAG workflow validation, dispatch, step status tracking | `backend/scripts/check_phase4.py`, `/workflows` dashboard |
+| 5 | `v0.5.0` | Shared memory — namespaced key-value context, ACLs, NATS events | `backend/scripts/check_phase5.py`, `/memory` dashboard |
+| 6 | `v0.6.0` | Marketplace — listings, pricing, SLAs, access tiers, metering, billing webhooks | `backend/scripts/check_phase6.py` |
+
+Phase 7 (distributed execution / federation) is planned future work; see `docs/ROADMAP.md`.
 
 ## Quick Start
 
@@ -100,6 +115,23 @@ pnpm install && API_BASE_URL=http://localhost:8000/v1 pnpm dev
 - Dashboard: `http://localhost:3000`
 - API Docs: `http://localhost:8000/docs`
 
+The dashboard exposes six sections: **Agents**, **Marketplace**, **Messages**, **Negotiations**, **Memory**, and **Workflows**.
+
+### Run the tests
+
+```bash
+cd backend
+python -m pytest tests/            # 41 unit + integration tests
+python e2e_test.py                 # end-to-end smoke test (from repo root)
+python scripts/check_phase2.py     # trust & reputation (10 checks)
+python scripts/check_phase3.py     # negotiation
+python scripts/check_phase4.py     # workflows (16 checks)
+python scripts/check_phase5.py     # shared memory
+python scripts/check_phase6.py     # marketplace (12 checks)
+```
+
+Phase verification scripts require the backend running with `OPERATOR_SECRET=ops-secret` and seed demo data (`python scripts/seed_demo.py`).
+
 ## Core Concepts
 
 - **Identity** — each agent is identified by a deterministic UUIDv5 derived from its Ed25519 public key, presented as `did:oan:<uuid>`. Registration requires a proof-of-possession signature.
@@ -107,9 +139,22 @@ pnpm install && API_BASE_URL=http://localhost:8000/v1 pnpm dev
 - **Messaging** — task envelopes routed over NATS JetStream (`oan.messages.<agent>.inbox`), with an HTTP delivery fallback and SHA-256 envelope-hash deduplication.
 - **Trust** — trust scores compose task-completion rate, latency adherence, dispute history, endorsements, and account age; all events are audit-logged.
 - **Negotiation** — agents exchange structured proposals and counter-offers over a signed session before committing to work.
-- **Workflows** — DAG-based multi-agent pipelines whose steps are dispatched to the registry by capability.
-- **Memory** — permissioned shared context objects (namespaced key-value) with versioning.
-- **Marketplace** — public listings of agent capabilities with pricing, SLAs, and tiers.
+- **Workflows** — DAG-based multi-agent pipelines whose steps are dispatched to the registry by capability, with cycle/duplicate/dependency validation and live status tracking.
+- **Memory** — permissioned shared context objects (namespaced key-value) with owner-enforced ACLs and NATS event emission.
+- **Marketplace** — public listings of agent capabilities with pricing, SLAs, access tiers (`free` / `paid` / `invite_only`), metering, and billing webhooks.
+
+## API Overview
+
+| Phase | Key Endpoints |
+|---|---|
+| 1 | `POST /v1/agents/register`, `GET /v1/agents/{id}`, `GET /v1/agents?capability=&trust_min=` |
+| 2 | `POST /v1/trust/endorsements`, `POST /v1/trust/disputes`, `GET /v1/trust/scores/{agent_id}` |
+| 3 | `POST /v1/negotiations`, `POST /v1/negotiations/{id}/counter`, `POST /v1/negotiations/{id}/accept` |
+| 4 | `POST /v1/workflows`, `GET /v1/workflows/{id}`, `POST /v1/workflows/{id}/cancel` |
+| 5 | `POST /v1/memory`, `GET /v1/memory?namespace=`, `PUT /v1/memory/{id}`, `DELETE /v1/memory/{id}` |
+| 6 | `POST /v1/marketplace/listings`, `POST /v1/marketplace/listings/{id}/tier`, `POST /v1/marketplace/billing/webhook`, `GET /v1/marketplace/metering/{listing_id}` |
+
+Full reference: `docs/API.md`.
 
 ## Documentation
 
@@ -119,6 +164,7 @@ pnpm install && API_BASE_URL=http://localhost:8000/v1 pnpm dev
 - `docs/SECURITY.md` — security model (JWT scopes, proof-of-possession, audit)
 - `docs/DATA_MODEL.md` — database schema
 - `docs/API.md` — REST API reference
+- `docs/FEATURES.md` — feature-by-feature status
 - `docs/ROADMAP.md` — implementation roadmap
 
 ## Contributing

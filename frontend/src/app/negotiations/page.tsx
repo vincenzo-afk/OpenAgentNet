@@ -76,9 +76,14 @@ export default function NegotiationsPage() {
           </Link>{" "}
           — Negotiations
         </h1>
-        <Link href="/" className="text-sm text-gray-600 hover:text-gray-900">
-          ← Back to agents
-        </Link>
+        <nav className="flex gap-4 text-sm">
+          <Link href="/">Agents</Link>
+          <Link href="/marketplace">Marketplace</Link>
+          <Link href="/messages">Messages</Link>
+          <Link href="/memory">Memory</Link>
+          <Link href="/negotiations" className="text-gray-900 font-medium">Negotiations</Link>
+          <Link href="/workflows">Workflows</Link>
+        </nav>
       </header>
       <main className="max-w-5xl mx-auto p-6 space-y-4">
         <p className="text-sm text-gray-600">

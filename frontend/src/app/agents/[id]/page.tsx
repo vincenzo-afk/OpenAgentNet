@@ -26,6 +26,9 @@ export default async function AgentDetailPage({ params }: { params: { id: string
           <Link href="/">Agents</Link>
           <Link href="/marketplace">Marketplace</Link>
           <Link href="/messages">Messages</Link>
+          <Link href="/negotiations">Negotiations</Link>
+          <Link href="/memory">Memory</Link>
+          <Link href="/workflows">Workflows</Link>
         </nav>
       </header>
 

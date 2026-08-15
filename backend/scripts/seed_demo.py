@@ -155,7 +155,14 @@ def main() -> int:
         agents = resp.json().get("agents", resp.json().get("items", []))
         print(f"discovery: {len(agents)} agent(s) match 'summarization'")
 
+        # Write per-agent tokens so verification scripts can act as the echo
+        # agent (e.g. for cross-agent endorsements and dispute filing) as well
+        # as the summarizer.
         with open("/tmp/demo_token.txt", "w") as f:
+            f.write(summ["api_token"])
+        with open("/tmp/demo_echo_token.txt", "w") as f:
+            f.write(echo["api_token"])
+        with open("/tmp/demo_summ_token.txt", "w") as f:
             f.write(summ["api_token"])
         print("Seed complete. Agent IDs:")
         print("  echo:      ", echo["agent_id"], echo["did"])
