@@ -39,8 +39,25 @@ from app.services.messaging import MessagingService
 logger = logging.getLogger(__name__)
 
 
+# Hard cap on synchronous HTTP delivery attempts. Beyond this the recipient
+# endpoint is considered dead and the task is failed instead of looping
+# forever (a pending task with an unreachable endpoint would otherwise be
+# retried every 10 seconds for the lifetime of the process).
+MAX_DELIVERY_ATTEMPTS = 3
+
+
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _count_delivery_attempts(task: Task) -> int:
+    """Read the delivery-attempt counter journalled in task.result."""
+    if isinstance(task.result, dict):
+        try:
+            return int(task.result.get("_delivery_attempts", 0))
+        except (TypeError, ValueError):
+            pass
+    return 0
 
 
 async def deliver_task_http(task: Task, recipient_endpoint: str) -> str:
@@ -112,7 +129,25 @@ async def task_delivery_worker(session_factory) -> None:
                     # 'delivered' means the agent accepted the envelope over
                     # HTTP; map it to 'running' — 'delivered' is not a valid
                     # tasks.status (check_task_status) and the commit fails.
-                    task.status = "running" if outcome == "delivered" else "pending"
+                    if outcome == "delivered":
+                        task.status = "running"
+                        continue
+                    # Undeliverable: journal the attempt in task.result so the
+                    # loop does not hammer a dead endpoint forever.
+                    attempts = _count_delivery_attempts(task)
+                    if attempts + 1 >= MAX_DELIVERY_ATTEMPTS:
+                        task.status = "failed"
+                        task.error_code = "DEAD_ENDPOINT"
+                        task.error_message = (
+                            f"Recipient endpoint {agent.endpoint} failed "
+                            f"{attempts + 1} delivery attempt(s)"
+                        )
+                        task.completed_at = utcnow()
+                        continue
+                    task.status = "pending"
+                    attempts_result = dict(task.result or {}) if isinstance(task.result, dict) else {}
+                    attempts_result["_delivery_attempts"] = attempts + 1
+                    task.result = attempts_result
                 if tasks:
                     await db.commit()
         except Exception:

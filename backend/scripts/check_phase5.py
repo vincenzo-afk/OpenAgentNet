@@ -208,11 +208,17 @@ def main() -> int:
                 await nc.connect("nats://localhost:4222", connect_timeout=5)
                 js = nc.jetstream()
                 # Create an ephemeral pull consumer that only delivers messages
-                # published AFTER it is created (deliver_policy NEW).
+                # published AFTER it is created: DELIVER_LAST skips anything
+                # the stream still holds from earlier verification runs
+                # (ephemeral consumers otherwise replay up to the stream's
+                # high-water mark when it has no prior ack floor).
+                from nats.js.api import ConsumerConfig, DeliverPolicy
+
                 pull = await js.pull_subscribe(
                     "oan.events.memory.>",
                     None,  # ephemeral
                     stream="OAN_EVENTS",
+                    config=ConsumerConfig(deliver_policy=DeliverPolicy.LAST),
                 )
                 await nc.flush(timeout=3)
 

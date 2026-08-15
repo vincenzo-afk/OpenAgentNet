@@ -50,6 +50,23 @@ async def register_agent(
         )
 
 
+@router.get("/agents/me", response_model=AgentResponse)
+async def get_my_agent(
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(get_current_subject)],
+):
+    """Return the profile of the agent that owns the presented JWT."""
+    agent = await registry_service.get_agent(
+        db, payload.get("agent_id") or payload.get("sub", "")
+    )
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent not found",
+        )
+    return AgentResponse(**agent)
+
+
 @router.get("/agents/{agent_id}", response_model=AgentResponse)
 async def get_agent(
     agent_id: str,

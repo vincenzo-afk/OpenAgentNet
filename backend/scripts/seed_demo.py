@@ -24,15 +24,43 @@ from datetime import datetime, timezone
 
 import httpx
 from canonicaljson import encode_canonical_json
+
+
+def derive_agent_id(public_key_raw_bytes: bytes) -> str:
+    """Mirror the backend's deterministic agent-id derivation."""
+    # Import the backend helper directly so the seed script can never drift
+    # out of sync with the server's own derivation.
+    import importlib.util
+    import os
+
+    spec = importlib.util.spec_from_file_location(
+        "identifiers",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "core", "identifiers.py"),
+    )
+    identifiers = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(identifiers)
+    return str(identifiers.derive_agent_id_from_bytes(public_key_raw_bytes))
+
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 BASE = "http://localhost:8000/v1"
 
 
+def make_key(name: str) -> ed25519.Ed25519PrivateKey:
+    """Derive a deterministic Ed25519 private key from the agent name so that
+    repeated demo seeds always register the SAME agents (idempotent seeding)."""
+    from cryptography.hazmat.primitives import hashes as _hashes
+
+    digest = _hashes.Hash(_hashes.SHA512())
+    digest.update(f"openagentnet:seed:{name}".encode())
+    seed = digest.finalize()[:32]
+    return ed25519.Ed25519PrivateKey.from_private_bytes(seed)
+
+
 def register(client: httpx.Client, name: str, capabilities: list[dict],
              description: str, endpoint: str) -> dict:
-    private_key = ed25519.Ed25519PrivateKey.generate()
+    private_key = make_key(name)
     public_bytes = private_key.public_key().public_bytes(
         serialization.Encoding.Raw, serialization.PublicFormat.Raw
     )
@@ -58,6 +86,30 @@ def register(client: httpx.Client, name: str, capabilities: list[dict],
     proof = {"timestamp": timestamp, "signature": base64.urlsafe_b64encode(signature).decode()}
 
     resp = client.post("/agents/register", json={"identity": manifest, "proof": proof}, timeout=30)
+    already_registered = resp.status_code in (400, 409) and "already" in resp.text.lower()
+    if already_registered:
+        # Agent already registered with this deterministic key (idempotent
+        # re-seed). Mint a fresh JWT offline: the server verifies JWTs with the
+        # public key bundle in backend/keys/jwt_public.pem, so the seed script
+        # signs with the matching private key — identical to what the server
+        # issued at original registration time.
+        from app.core.security import create_access_token
+
+        agent_id = derive_agent_id(public_bytes)
+        did = f"did:oan:{agent_id}"
+        token = create_access_token(
+            subject=did,
+            scopes=["agent:all"],
+            extra_claims={"agent_id": agent_id},
+        )
+        return {
+            "agent_id": agent_id,
+            "did": did,
+            "api_token": token,
+            "status": "active",
+            "re_seeded": True,
+            "_private_key": private_key,
+        }
     resp.raise_for_status()
     return {**resp.json(), "_private_key": private_key}
 

@@ -9,27 +9,51 @@ import httpx
 BASE = "http://localhost:8000/v1"
 
 
-def seed_pair() -> tuple[str, str, str]:
-    """Register two agents via the demo seed script and return (echo_id, summ_id, summ_token)."""
+def seed_pair() -> tuple[str, str, str, dict]:
+    """Register two agents via the demo seed script and return (echo_id, summ_id, summ_token, auth_summ)."""
     import subprocess
+    # Guarantee a deterministic baseline: stale rows from earlier runs would
+    # otherwise make endorsement/dispute assertions flaky.
+    import check_helpers  # noqa: E402 (lives next to this script via PYTHONPATH)
+
+    check_helpers.reset_check_state()
     subprocess.run(
         ["python3", "scripts/seed_demo.py"],
         cwd=os.path.dirname(os.path.abspath(__file__)) + "/..",
         check=True, capture_output=True,
     )
+    # seed_demo pre-seeds an endorsement; wipe trust tables so the checks
+    # assert against a clean baseline.
+    check_helpers.reset_trust_state()
     # seed_demo saves per-agent tokens: act as the echo agent for endorsements
     # and dispute filing (self-endorsement and self-flagging are rejected).
     echo_token = open("/tmp/demo_echo_token.txt").read().strip()
     token = open("/tmp/demo_summ_token.txt").read().strip()
     auth = {"Authorization": f"Bearer {echo_token}"}
     auth_summ = {"Authorization": f"Bearer {token}"}
+    # Agents may briefly be marked inactive by the heartbeat worker while the
+    # check is starting, so discover any status and retry until the pair is
+    # visible (the seed just registered them, so a few seconds is enough).
+    import time
+
     with httpx.Client(base_url=BASE, timeout=15) as client:
-        echo_agents = client.get("/discover?capability=echo", headers=auth).json()["agents"]
-        summ_agents = client.get("/discover?capability=summarization",
-                                 headers=auth).json()["agents"]
-    # seed_demo registers demo-echo + demo-summarizer (multiple runs may duplicate).
-    # The saved token belongs to the newest pair; discovery lists agents oldest
-    # first, so pick the LAST matching entry of each capability.
+        echo_agents, summ_agents = [], []
+        for _ in range(12):
+            echo_agents = []
+            summ_agents = []
+            for status in ("active", "inactive", "suspended", "deregistered"):
+                echo_agents += client.get(
+                    f"/discover?capability=echo&status={status}", headers=auth
+                ).json()["agents"]
+                summ_agents += client.get(
+                    f"/discover?capability=summarization&status={status}", headers=auth
+                ).json()["agents"]
+            if echo_agents and summ_agents:
+                break
+            time.sleep(1)
+    # seed_demo registers demo-echo + demo-summarizer; discovery lists agents
+    # oldest first, so pick the LAST matching entry of each capability (the
+    # pair whose tokens were saved to /tmp).
     echo = [a for a in echo_agents if a["name"] == "demo-echo"][-1]
     summ = [a for a in summ_agents if a["name"] == "demo-summarizer"][-1]
     return echo["agent_id"], summ["agent_id"], token, auth_summ
@@ -37,7 +61,9 @@ def seed_pair() -> tuple[str, str, str]:
 
 def main() -> int:
     echo_id, summ_id, token, auth_summ = seed_pair()
-    auth = {"Authorization": f"Bearer {token}"}
+    # Act as the ECHO agent for endorsements/disputes — self-endorsement and
+    # self-flagging are rejected by the server.
+    auth = {"Authorization": f"Bearer {open('/tmp/demo_echo_token.txt').read().strip()}"}
     fails = []
 
     with httpx.Client(base_url=BASE, timeout=20) as client:

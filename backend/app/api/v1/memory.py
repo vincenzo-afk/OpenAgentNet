@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID as _UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +48,10 @@ async def read_memory(
     payload: Annotated[dict, Depends(require_scope("memory:read"))],
 ):
     agent_id = payload.get("agent_id", "")
+    try:
+        memory_id = str(_UUID(memory_id))
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid memory id")
     memory = await memory_service.read_memory(db, agent_id, memory_id)
     if not memory:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Memory not found")
@@ -62,6 +67,10 @@ async def update_memory(
 ):
     """Update an existing memory object (owner only)."""
     agent_id = payload.get("agent_id", "")
+    try:
+        memory_id = str(_UUID(memory_id))
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid memory id")
     try:
         result = await memory_service.update_memory(
             db,
@@ -98,6 +107,10 @@ async def delete_memory(
     payload: Annotated[dict, Depends(require_scope("memory:write"))],
 ):
     agent_id = payload.get("agent_id", "")
+    try:
+        memory_id = str(_UUID(memory_id))
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid memory id")
     try:
         await memory_service.delete_memory(db, agent_id, memory_id)
     except ValueError as e:

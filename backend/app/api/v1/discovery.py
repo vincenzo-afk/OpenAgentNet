@@ -40,6 +40,7 @@ async def discover_agents(
     capability: str | None = None,
     tags: str | None = None,
     min_trust_score: float | None = None,
+    status: str | None = None,
     limit: int = 10,
     sort: str = "trust_score:desc",
 ):
@@ -48,6 +49,8 @@ async def discover_agents(
         filters["min_trust_score"] = min_trust_score
     if tags:
         filters["tags"] = tags.split(",")
+    if status is not None:
+        filters["status"] = status
 
     result = await discovery_service.search(
         db,
