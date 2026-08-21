@@ -83,12 +83,13 @@ class MarketplaceService:
 
             from app.models.agent import Agent
 
-            safe_cap = _json.dumps([{"name": capability}])
+            safe_cap = [{"name": capability}]
+            from sqlalchemy.dialects.postgresql import JSONB
             query = query.join(Agent, MarketplaceListing.agent_id == Agent.id).where(
-                Agent.capabilities.op("@>")(sa.text(f"'{safe_cap}'::jsonb"))
+                Agent.capabilities.op("@>")(sa.cast(safe_cap, JSONB))
             )
             count_query = count_query.join(Agent, MarketplaceListing.agent_id == Agent.id).where(
-                Agent.capabilities.op("@>")(sa.text(f"'{safe_cap}'::jsonb"))
+                Agent.capabilities.op("@>")(sa.cast(safe_cap, JSONB))
             )
 
         total_result = await db.execute(count_query)

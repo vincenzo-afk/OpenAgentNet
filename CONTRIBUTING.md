@@ -93,7 +93,19 @@ PYTHONPATH=. python ../scripts/audit_schema.py   # expects ALL MATCH
   when adding endpoints.
 - Update documentation when behaviour changes.
 
+## Reporting bugs
+
+- Use the GitHub issue tracker.
+- Provide a clear and concise description of the bug.
+- Include steps to reproduce the behavior.
+- Attach any relevant logs or screenshots.
+
 ## Reporting security issues
 
 Please email itsmebk2007@gmail.com rather than opening a public issue.
-See `docs/SECURITY.md` for the security model.
+See `SECURITY.md` for the security model and reporting process.
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
+

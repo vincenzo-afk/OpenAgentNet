@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+docs
+README.md
+CONTRIBUTING.md
+SECURITY.md
+
+# Development
+.env
+.env.local
+.vscode
+.idea
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+htmlcov
+dist
+build
+*.egg-info
+
+# Frontend
+frontend/node_modules
+frontend/.next
+frontend/out
+frontend/build
+
+# Backend
+backend/venv
+backend/.venv
+backend/keys/*.pem
+backend/keys/*.pub
+
+# Infrastructure
+infra/docker/volumes
+infra/docker/data

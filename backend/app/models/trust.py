@@ -3,7 +3,17 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Index, Integer, Numeric, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,7 +28,9 @@ class TrustRecord(Base):
     __tablename__ = "trust_records"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True, nullable=False)
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
     trust_score: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, default=0.500)
     outcome_rate: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, default=0.500)
     endorsement_score: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, default=0.500)
@@ -46,8 +58,12 @@ class Endorsement(Base):
     __tablename__ = "endorsements"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    from_agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    to_agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    from_agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
+    to_agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
     capability: Mapped[str] = mapped_column(Text, nullable=False)
     comment: Mapped[str | None] = mapped_column(Text)
     weight: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
@@ -65,9 +81,15 @@ class Dispute(Base):
     __tablename__ = "disputes"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    reported_agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    reporter_agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    task_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    reported_agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
+    reporter_agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="SET NULL")
+    )
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     evidence: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="open")
@@ -90,4 +112,7 @@ class Dispute(Base):
             name="check_dispute_status",
         ),
         Index("idx_disputes_status", "status"),
+        Index("idx_disputes_reported", "reported_agent_id"),
+        Index("idx_disputes_reporter", "reporter_agent_id"),
+        Index("idx_disputes_task", "task_id"),
     )

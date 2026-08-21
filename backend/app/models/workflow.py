@@ -3,7 +3,14 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,7 +25,9 @@ class Workflow(Base):
     __tablename__ = "workflows"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    owner_agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    owner_agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
     definition: Mapped[dict] = mapped_column(JSONB, nullable=False)
@@ -43,8 +52,12 @@ class WorkflowTask(Base):
     __tablename__ = "workflow_tasks"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    workflow_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    task_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    workflow_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="SET NULL")
+    )
     node_id: Mapped[str] = mapped_column(Text, nullable=False)
     capability_name: Mapped[str] = mapped_column(Text, nullable=False)
     depends_on: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
@@ -54,5 +67,6 @@ class WorkflowTask(Base):
 
     __table_args__ = (
         Index("idx_workflow_tasks_workflow", "workflow_id"),
+        Index("idx_workflow_tasks_task", "task_id"),
         UniqueConstraint("workflow_id", "node_id", name="uq_workflow_task_node"),
     )

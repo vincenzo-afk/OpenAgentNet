@@ -29,7 +29,9 @@ class MemoryObject(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     namespace: Mapped[str] = mapped_column(Text, nullable=False)
     key: Mapped[str] = mapped_column(Text, nullable=False)
-    owner_agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    owner_agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
     data: Mapped[dict] = mapped_column(JSONB, nullable=False)
     data_type: Mapped[str] = mapped_column(Text, nullable=False, default="json")
     is_ephemeral: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -55,11 +57,14 @@ class MemoryPermission(Base):
         ForeignKey("memory_objects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    grantee_agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    grantee_agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
     permission: Mapped[str] = mapped_column(Text, nullable=False)
     granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     __table_args__ = (
         UniqueConstraint("memory_id", "grantee_agent_id", name="unique_memory_permission"),
         CheckConstraint("permission IN ('read', 'read_write')", name="check_memory_permission"),
+        Index("idx_memory_permissions_grantee", "grantee_agent_id"),
     )

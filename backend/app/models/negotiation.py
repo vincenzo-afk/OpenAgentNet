@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Integer, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,8 +18,12 @@ class Negotiation(Base):
     __tablename__ = "negotiations"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    requester_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    target_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    requester_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
+    target_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
     capability: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="proposed")
     proposal: Mapped[dict] = mapped_column(JSONB, nullable=False)
@@ -37,4 +41,7 @@ class Negotiation(Base):
             "status IN ('proposed', 'countered', 'accepted', 'declined', 'expired')",
             name="check_negotiation_status",
         ),
+        Index("idx_negotiations_requester", "requester_id"),
+        Index("idx_negotiations_target", "target_id"),
+        Index("idx_negotiations_status", "status"),
     )

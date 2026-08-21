@@ -36,10 +36,11 @@ class DiscoveryService:
             import json as _json
 
             for cap in capabilities:
-                safe_cap = _json.dumps([{"name": cap}])
-                query = query.where(Agent.capabilities.op("@>")(sa.text(f"'{safe_cap}'::jsonb")))
+                safe_cap = [{"name": cap}]
+                from sqlalchemy.dialects.postgresql import JSONB
+                query = query.where(Agent.capabilities.op("@>")(sa.cast(safe_cap, JSONB)))
                 count_query = count_query.where(
-                    Agent.capabilities.op("@>")(sa.text(f"'{safe_cap}'::jsonb"))
+                    Agent.capabilities.op("@>")(sa.cast(safe_cap, JSONB))
                 )
 
         # Trust score filter via join
