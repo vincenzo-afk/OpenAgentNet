@@ -87,7 +87,7 @@ jobs:
         with:
           node-version: "22"
       - run: npm install -g pnpm@latest && pnpm --version
-      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm config set only-built-dependencies unrs-resolver && pnpm install --no-frozen-lockfile
         working-directory: frontend
       - run: pnpm build
         working-directory: frontend
