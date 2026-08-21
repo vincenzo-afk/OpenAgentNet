@@ -62,7 +62,7 @@ jobs:
 
       - name: Run unit tests
         working-directory: backend
-        run: pytest tests/ -q
+        run: python -m pytest tests/ -q
         env:
           DATABASE_URL: postgresql+asyncpg://openagentnet:openagentnet@localhost:5432/openagentnet
           REDIS_URL: redis://localhost:6379/0
@@ -86,8 +86,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: corepack enable
-      - run: pnpm install --frozen-lockfile || pnpm install
+      - run: npm install -g pnpm@latest && pnpm --version
+      - run: pnpm install --no-frozen-lockfile
         working-directory: frontend
       - run: pnpm build
         working-directory: frontend
