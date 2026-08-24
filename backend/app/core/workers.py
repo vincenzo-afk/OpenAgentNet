@@ -35,6 +35,7 @@ from app.core.nats_client import (
 from app.models.agent import Agent
 from app.models.task import Task
 from app.services.messaging import MessagingService
+from app.services.trust import TrustService
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,16 @@ MAX_DELIVERY_ATTEMPTS = 3
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+async def _record_terminal_outcome(db, task: Task, success: bool = False) -> None:
+    """Feed worker-owned terminal states into the trust/reputation service."""
+    await TrustService().record_outcome(
+        db,
+        str(task.id),
+        success=success,
+        execution_ms=task.execution_ms,
+    )
 
 
 def _count_delivery_attempts(task: Task) -> int:
@@ -124,6 +135,7 @@ async def task_delivery_worker(session_factory) -> None:
                         task.error_code = "RECIPIENT_INACTIVE"
                         task.error_message = "Recipient agent is inactive"
                         task.completed_at = utcnow()
+                        await _record_terminal_outcome(db, task)
                         continue
                     outcome = await deliver_task_http(task, agent.endpoint)
                     # 'delivered' means the agent accepted the envelope over
@@ -143,6 +155,7 @@ async def task_delivery_worker(session_factory) -> None:
                             f"{attempts + 1} delivery attempt(s)"
                         )
                         task.completed_at = utcnow()
+                        await _record_terminal_outcome(db, task)
                         continue
                     task.status = "pending"
                     attempts_result = dict(task.result or {}) if isinstance(task.result, dict) else {}
@@ -178,6 +191,7 @@ async def ttl_expiry_worker(session_factory) -> None:
                     task.error_code = "TIMEOUT"
                     task.error_message = f"Task exceeded TTL of {task.ttl_seconds}s"
                     task.completed_at = utcnow()
+                    await _record_terminal_outcome(db, task)
                 if expired:
                     await db.commit()
         except Exception:
