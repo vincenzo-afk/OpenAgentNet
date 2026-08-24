@@ -1,0 +1,362 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openagentnet
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openagentnet-secrets
+  namespace: openagentnet
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: change-me
+  DATABASE_URL: postgresql+asyncpg://openagentnet:change-me@postgres:5432/openagentnet
+  OPERATOR_SECRET: change-me
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openagentnet-config
+  namespace: openagentnet
+data:
+  REDIS_URL: redis://redis:6379/0
+  NATS_URL: nats://oan-nats:4222
+  NATS_CLUSTER_NAME: openagentnet
+  REGION: local
+  REGISTRY_ID: local-registry
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: openagentnet
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: openagentnet
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: openagentnet
+            - name: POSTGRES_DB
+              value: openagentnet
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openagentnet-secrets
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U openagentnet -d openagentnet"]
+            periodSeconds: 5
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: openagentnet
+spec:
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: openagentnet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["--appendonly", "yes"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 5
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+      volumes:
+        - name: redis-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oan-nats
+  namespace: openagentnet
+spec:
+  selector:
+    app: oan-nats
+  ports:
+    - name: client
+      port: 4222
+      targetPort: client
+    - name: cluster
+      port: 6222
+      targetPort: cluster
+    - name: leafnodes
+      port: 7422
+      targetPort: leafnodes
+    - name: monitor
+      port: 8222
+      targetPort: monitor
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oan-nats-headless
+  namespace: openagentnet
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: oan-nats
+  ports:
+    - name: cluster
+      port: 6222
+      targetPort: cluster
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oan-nats-config
+  namespace: openagentnet
+data:
+  nats.conf: |
+    port: 4222
+    http: 8222
+    server_name: $POD_NAME
+    jetstream {
+      store_dir: /data/jetstream
+      max_mem_store: 1Gb
+      max_file_store: 10Gb
+    }
+    cluster {
+      name: openagentnet
+      port: 6222
+      routes: [
+        nats://oan-nats-0.oan-nats-headless.openagentnet.svc.cluster.local:6222,
+        nats://oan-nats-1.oan-nats-headless.openagentnet.svc.cluster.local:6222,
+        nats://oan-nats-2.oan-nats-headless.openagentnet.svc.cluster.local:6222
+      ]
+      connect_retries: true
+    }
+    leafnodes {
+      port: 7422
+    }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: oan-nats
+  namespace: openagentnet
+spec:
+  serviceName: oan-nats-headless
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: oan-nats
+  template:
+    metadata:
+      labels:
+        app: oan-nats
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: nats
+          image: nats:2.10-alpine
+          command: ["nats-server"]
+          args: ["-c", "/etc/nats/nats.conf"]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: client
+              containerPort: 4222
+            - name: cluster
+              containerPort: 6222
+            - name: leafnodes
+              containerPort: 7422
+            - name: monitor
+              containerPort: 8222
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            periodSeconds: 5
+          volumeMounts:
+            - name: nats-config
+              mountPath: /etc/nats
+            - name: nats-data
+              mountPath: /data
+      volumes:
+        - name: nats-config
+          configMap:
+            name: oan-nats-config
+  volumeClaimTemplates:
+    - metadata:
+        name: nats-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openagentnet
+  namespace: openagentnet
+spec:
+  selector:
+    app: openagentnet
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openagentnet
+  namespace: openagentnet
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: openagentnet
+  template:
+    metadata:
+      labels:
+        app: openagentnet
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/vincenzo-afk/openagentnet-backend:latest
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: openagentnet-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: openagentnet-secrets
+                  key: DATABASE_URL
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openagentnet-secrets
+                  key: POSTGRES_PASSWORD
+            - name: OPERATOR_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: openagentnet-secrets
+                  key: OPERATOR_SECRET
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openagentnet-migrations
+  namespace: openagentnet
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrations
+          image: ghcr.io/vincenzo-afk/openagentnet-backend:latest
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: openagentnet-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: openagentnet-secrets
+                  key: DATABASE_URL
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openagentnet-secrets
+                  key: POSTGRES_PASSWORD
