@@ -20,6 +20,7 @@ from app.core.config import get_settings
 from app.core.identifiers import build_did, derive_agent_id_from_bytes, parse_agent_id
 from app.core.security import create_access_token
 from app.models.agent import Agent, ApiKey
+from app.models.agent_version import AgentVersion
 from app.schemas.agent import AgentManifest
 
 
@@ -96,6 +97,7 @@ class RegistryService:
         )
         db.add(api_key)
         await db.flush()
+        await self._record_version(db, agent)
 
         # Audit log: agent registered (SECURITY.md requirement)
         await log_audit_event(
@@ -174,9 +176,104 @@ class RegistryService:
 
         agent.updated_at = utcnow()
         await db.flush()
+        await self._record_version(db, agent)
         return self._agent_to_dict(agent)
 
-    async def deregister_agent(self, db: AsyncSession, agent_id: str) -> None:
+    async def list_versions(
+        self, db: AsyncSession, agent_id: str, limit: int = 50
+    ) -> dict[str, Any]:
+        resolved = parse_agent_id(agent_id)
+        if not resolved:
+            raise ValueError("Agent not found")
+        result = await db.execute(
+            select(AgentVersion)
+            .where(AgentVersion.agent_id == resolved)
+            .order_by(AgentVersion.revision.desc())
+            .limit(limit)
+        )
+        versions = result.scalars().all()
+        return {
+            "agent_id": str(resolved),
+            "total": len(versions),
+            "items": [self._version_to_dict(version) for version in versions],
+        }
+
+    async def diff_versions(
+        self, db: AsyncSession, agent_id: str, from_revision: int, to_revision: int
+    ) -> dict[str, Any]:
+        resolved = parse_agent_id(agent_id)
+        if not resolved:
+            raise ValueError("Agent not found")
+        result = await db.execute(
+            select(AgentVersion).where(
+                AgentVersion.agent_id == resolved,
+                AgentVersion.revision.in_([from_revision, to_revision]),
+            )
+        )
+        versions = {version.revision: version for version in result.scalars().all()}
+        before = versions.get(from_revision)
+        after = versions.get(to_revision)
+        if not before or not after:
+            raise ValueError("Requested agent revisions were not found")
+
+        before_caps = {item.get("name", ""): item for item in before.capabilities}
+        after_caps = {item.get("name", ""): item for item in after.capabilities}
+        changes: list[dict[str, Any]] = []
+        for name in sorted(set(before_caps) | set(after_caps)):
+            if name not in before_caps:
+                changes.append({"name": name, "change": "added", "after": after_caps[name]})
+            elif name not in after_caps:
+                changes.append({"name": name, "change": "removed", "before": before_caps[name]})
+            elif before_caps[name] != after_caps[name]:
+                changes.append(
+                    {
+                        "name": name,
+                        "change": "changed",
+                        "before": before_caps[name],
+                        "after": after_caps[name],
+                    }
+                )
+        return {
+            "agent_id": str(resolved),
+            "from_revision": from_revision,
+            "to_revision": to_revision,
+            "version_changed": before.version != after.version,
+            "endpoint_changed": before.endpoint != after.endpoint,
+            "metadata_changed": before.metadata_ != after.metadata_,
+            "capabilities": changes,
+        }
+
+    async def _record_version(self, db: AsyncSession, agent: Agent) -> AgentVersion:
+        latest_result = await db.execute(
+            select(func.max(AgentVersion.revision)).where(AgentVersion.agent_id == agent.id)
+        )
+        latest = latest_result.scalar() or 0
+        version = AgentVersion(
+            agent_id=agent.id,
+            revision=int(latest) + 1,
+            version=agent.version,
+            endpoint=agent.endpoint,
+            capabilities=agent.capabilities or [],
+            metadata_=agent.metadata_ or {},
+        )
+        db.add(version)
+        await db.flush()
+        return version
+
+    def _version_to_dict(self, version: AgentVersion) -> dict[str, Any]:
+        return {
+            "agent_id": str(version.agent_id),
+            "revision": version.revision,
+            "version": version.version,
+            "endpoint": version.endpoint,
+            "capabilities": version.capabilities or [],
+            "metadata": version.metadata_ or {},
+            "created_at": version.created_at,
+        }
+
+    async def deregister_agent(
+        self, db: AsyncSession, agent_id: str
+    ) -> None:
         resolved = parse_agent_id(agent_id)
         if not resolved:
             raise ValueError("Agent not found")

@@ -13,6 +13,8 @@ from app.schemas.agent import (
     RegistrationRequest,
     RegistrationResponse,
 )
+from app.schemas.versioning import AgentVersionDiffResponse, AgentVersionListResponse
+
 from app.services.messaging import MessagingService
 from app.services.registry import RegistryService
 
@@ -65,6 +67,35 @@ async def get_my_agent(
             detail="Agent not found",
         )
     return AgentResponse(**agent)
+
+
+@router.get("/agents/{agent_id}/versions", response_model=AgentVersionListResponse)
+async def list_agent_versions(
+    agent_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    _payload: Annotated[dict, Depends(require_scope("discovery:read"))],
+    limit: int = Query(50, ge=1, le=200),
+):
+    try:
+        return await registry_service.list_versions(db, agent_id, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/agents/{agent_id}/diff", response_model=AgentVersionDiffResponse)
+async def diff_agent_versions(
+    agent_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    _payload: Annotated[dict, Depends(require_scope("discovery:read"))],
+    from_revision: int = Query(..., ge=1),
+    to_revision: int = Query(..., ge=1),
+):
+    try:
+        return await registry_service.diff_versions(
+            db, agent_id, from_revision=from_revision, to_revision=to_revision
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/agents/{agent_id}", response_model=AgentResponse)

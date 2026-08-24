@@ -1,4 +1,5 @@
 from app.models.agent import Agent, ApiKey
+from app.models.agent_version import AgentVersion
 from app.models.audit import AuditEvent
 from app.models.federation import FederatedRegistry
 from app.models.base import Base
@@ -15,6 +16,7 @@ __all__ = [
     "Base",
     "Agent",
     "ApiKey",
+    "AgentVersion",
     "Task",
     "TaskStreamChunk",
     "TrustRecord",
