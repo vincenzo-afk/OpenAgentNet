@@ -166,6 +166,8 @@ class MessagingService:
 
         # Verify signature if provided (FR-MSG-004)
         signature = envelope.get("signature")
+        if get_settings().require_message_signatures and not signature:
+            raise ValueError("Message signature is required")
         if signature:
             body = {k: v for k, v in envelope.items() if k != "signature"}
             canonical = canonical_json_bytes(body)
@@ -320,6 +322,8 @@ class MessagingService:
             raise ValueError("Team has no active members")
 
         signature = envelope.get("signature")
+        if get_settings().require_message_signatures and not signature:
+            raise ValueError("Message signature is required")
         if signature:
             body = {k: v for k, v in envelope.items() if k != "signature"}
             if not verify_signature(

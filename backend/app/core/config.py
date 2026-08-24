@@ -70,6 +70,7 @@ class Settings(BaseSettings):
     # Payload limits
     max_payload_bytes: int = 1_048_576  # 1MB
     validate_task_payloads: bool = False
+    require_message_signatures: bool = False
 
     @property
     def jwt_private_key(self) -> str:

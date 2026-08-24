@@ -207,7 +207,7 @@ A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Red
 
 **NFR-003: Throughput** — Phase 1 target: 10,000 messages/minute. Phase 5 target: 1M messages/minute.
 
-**NFR-004: Security** — Zero storage of agent private keys. All message signatures verified. Audit log tamper-resistance.
+**NFR-004: Security** — Zero storage of agent private keys. Message signatures are verified whenever supplied; production deployments can set `REQUIRE_MESSAGE_SIGNATURES=true` to reject unsigned messages on both direct and team delivery paths. Audit log tamper-resistance remains required.
 
 **NFR-005: Scalability** — Horizontal scaling on all stateless services. Read replicas for PostgreSQL. Redis cluster mode.
 
