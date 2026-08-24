@@ -141,7 +141,7 @@ Agents can read entries in their own namespace or in namespaces they have been g
 Memory entries expire at a configurable TTL.
 
 **FR-MEM-004: Semantic Memory Search**
-Using pgvector, agents can retrieve memory entries by semantic similarity (embedding-based).
+Agents can persist optional 1536-dimensional pgvector embeddings and retrieve non-expired, owner-scoped memory entries by cosine similarity through `POST /v1/memory/search`. Namespace filtering and pagination are supported.
 
 ---
 

@@ -25,6 +25,7 @@ dependencies = [
     "opentelemetry-api>=1.25.0",
     "opentelemetry-sdk>=1.25.0",
     "opentelemetry-exporter-otlp-proto-http>=1.25.0",
+    "pgvector>=0.3.0",
     "jsonschema>=4.22.0",
     "canonicaljson>=2.0.0",
     "base58>=2.1.1",

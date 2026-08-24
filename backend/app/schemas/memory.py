@@ -19,6 +19,7 @@ class MemoryWriteRequest(BaseModel):
     permissions: list[MemoryPermissionSchema] = []
     ephemeral: bool = False
     ttl_seconds: int | None = None
+    embedding: list[float] | None = None
 
 
 class MemoryObjectResponse(BaseModel):
@@ -35,6 +36,24 @@ class MemoryObjectResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MemorySearchRequest(BaseModel):
+    embedding: list[float] = Field(..., min_length=1)
+    namespace: str | None = None
+    limit: int = Field(default=20, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
+
+
+class MemorySearchResult(MemoryObjectResponse):
+    similarity: float
+
+
+class MemorySearchResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    items: list[MemorySearchResult]
 
 
 class MemoryListResponse(BaseModel):

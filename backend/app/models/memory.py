@@ -15,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
+from pgvector.sqlalchemy import Vector
 
 from app.models.base import Base
 
@@ -36,6 +37,7 @@ class MemoryObject(Base):
     data_type: Mapped[str] = mapped_column(Text, nullable=False, default="json")
     is_ephemeral: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(

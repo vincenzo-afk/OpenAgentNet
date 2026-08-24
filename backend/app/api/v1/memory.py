@@ -10,6 +10,8 @@ from app.core.dependencies import get_db_session, require_scope
 from app.schemas.memory import (
     MemoryListResponse,
     MemoryObjectResponse,
+    MemorySearchRequest,
+    MemorySearchResponse,
     MemoryWriteRequest,
 )
 from app.services.memory import MemoryService
@@ -35,8 +37,29 @@ async def write_memory(
             permissions=[p.model_dump() for p in body.permissions] if body.permissions else None,
             ephemeral=body.ephemeral,
             ttl_seconds=body.ttl_seconds,
+            embedding=body.embedding,
         )
         return MemoryObjectResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/search", response_model=MemorySearchResponse)
+async def search_memory(
+    body: MemorySearchRequest,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("memory:read"))],
+):
+    try:
+        result = await memory_service.search_memory(
+            db,
+            agent_id=payload.get("agent_id", ""),
+            embedding=body.embedding,
+            namespace=body.namespace,
+            limit=body.limit,
+            offset=body.offset,
+        )
+        return MemorySearchResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

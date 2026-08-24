@@ -28,7 +28,11 @@ class MemoryService:
         permissions: list[dict[str, Any]] | None = None,
         ephemeral: bool = False,
         ttl_seconds: int | None = None,
+        embedding: list[float] | None = None,
     ) -> dict[str, Any]:
+        if embedding is not None and len(embedding) != 1536:
+            raise ValueError("embedding must contain exactly 1536 dimensions")
+
         # Namespace isolation (Phase 5 deliverable): an agent may only write
         # memories into its own namespace space. When the namespace is
         # namespaced by agent id (``agent:<agent_id>``) it must match the
@@ -61,6 +65,7 @@ class MemoryService:
             existing.data = data
             existing.data_type = data_type
             existing.is_ephemeral = ephemeral
+            existing.embedding = embedding
             existing.version += 1
             existing.updated_at = utcnow()
             if ttl_seconds is not None:
@@ -80,6 +85,7 @@ class MemoryService:
                 data_type=data_type,
                 is_ephemeral=ephemeral,
                 expires_at=expires_at,
+                embedding=embedding,
             )
             db.add(memory)
             await db.flush()
@@ -197,6 +203,48 @@ class MemoryService:
             "offset": offset,
             "items": [self._memory_to_dict(m) for m in memories],
         }
+
+    async def search_memory(
+        self,
+        db: AsyncSession,
+        agent_id: str,
+        embedding: list[float],
+        namespace: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Search an agent's non-expired embedded memories by cosine similarity."""
+        if len(embedding) != 1536:
+            raise ValueError("embedding must contain exactly 1536 dimensions")
+        owner = parse_agent_id(agent_id)
+        if owner is None:
+            raise ValueError("Invalid agent_id")
+        active_filter = (
+            (MemoryObject.owner_agent_id == owner)
+            & MemoryObject.embedding.is_not(None)
+            & ((MemoryObject.expires_at.is_(None)) | (MemoryObject.expires_at > utcnow()))
+        )
+        count_query = select(func.count(MemoryObject.id)).where(active_filter)
+        query = select(
+            MemoryObject,
+            (1 - MemoryObject.embedding.cosine_distance(embedding)).label("similarity"),
+        ).where(active_filter)
+        if namespace:
+            query = query.where(MemoryObject.namespace == namespace)
+            count_query = count_query.where(MemoryObject.namespace == namespace)
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
+        result = await db.execute(
+            query.order_by(MemoryObject.embedding.cosine_distance(embedding))
+            .offset(offset)
+            .limit(limit)
+        )
+        items = []
+        for memory, similarity in result.all():
+            item = self._memory_to_dict(memory)
+            item["similarity"] = round(float(similarity), 6)
+            items.append(item)
+        return {"total": total, "limit": limit, "offset": offset, "items": items}
 
     async def update_memory(
         self,
