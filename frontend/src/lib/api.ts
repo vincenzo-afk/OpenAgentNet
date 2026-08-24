@@ -43,9 +43,19 @@ export interface MarketplaceListing {
   agent_id: string;
   title: string;
   long_description?: string | null;
-  pricing: { currency: string; unit_price: number; unit: string };
+  pricing: Record<string, unknown>;
+  sla: Record<string, unknown>;
   is_public: boolean;
   access_tier?: string;
+}
+
+export interface MarketplaceSearchFilters {
+  capability?: string;
+  min_trust_score?: number;
+  access_tier?: string;
+  min_price?: number;
+  max_price?: number;
+  max_latency_p95_ms?: number;
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "http://localhost:8000/v1";
@@ -122,9 +132,16 @@ export async function fetchMessages(agentId: string, token: string | null): Prom
   }));
 }
 
-export async function fetchListings(token: string | null): Promise<MarketplaceListing[]> {
+export async function fetchListings(
+  token: string | null,
+  filters: MarketplaceSearchFilters = {},
+): Promise<MarketplaceListing[]> {
   try {
-    const resp = await fetch(`${BASE_URL}/marketplace/listings`, {
+    const query = new URLSearchParams({ limit: "50" });
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== "") query.set(key, String(value));
+    }
+    const resp = await fetch(`${BASE_URL}/marketplace/listings?${query.toString()}`, {
       headers: authHeaders(token),
       next: { revalidate: 10 },
     });

@@ -126,7 +126,7 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 - [x] Search and browse marketplace (`/v1/marketplace`, filters: capability, min/max price, max p95 latency, min_trust_score, access_tier)
 - [x] Access tier management (free, paid, invite-only) with tier details JSONB
 - [x] Usage metering and billing hooks (no payment processing in-scope, hooks only) — `marketplace_usage` table + `POST /v1/marketplace/webhooks/billing`
-- [x] Dashboard: Marketplace browse and listing management (`/marketplace` shows access tier badges)
+- [x] Dashboard: Marketplace browse and listing management (`/marketplace` shows access tier badges and interactive capability, trust, price, and SLA filters)
 
 **Status**: `v0.6.0` shipped — verified by `check_phase6.py` (migration `009_marketplace_access_tiers.py`).
 
