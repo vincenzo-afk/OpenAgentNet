@@ -59,3 +59,11 @@ async def test_discovery_supports_latency_filter_and_sort() -> None:
         if isinstance(value, (str, int, float))
     }
     assert {"latency_p95_ms", "latency_estimate_ms", "language", "domain"}.issubset(bind_values)
+
+
+async def test_discovery_supports_cost_sort() -> None:
+    db = _DB()
+    await DiscoveryService().search(db, sort="cost:asc")
+    compiled = db.statements[1].compile(dialect=dialect())
+    assert "cost_estimate" in compiled.params.values()
+    assert "value" in compiled.params.values()

@@ -40,7 +40,7 @@ Discovery queries can specify multiple required capabilities. Only agents suppor
 Queries can filter by `min_trust_score`, `max_latency_p95_ms`, `status`, and any indexed metadata field.
 
 **FR-DIS-004: Sort Options**
-Results can be sorted by `trust_score`, `latency_p95_ms`, or `registered_at`.
+Results can be sorted by `trust_score`, `latency_p95_ms` (or protocol alias `latency`), `cost`, or `registered_at`.
 
 **FR-DIS-005: Redis Capability Index**
 Capability lookups use a Redis sorted set indexed by trust score. Supports O(log n) filtered range queries.

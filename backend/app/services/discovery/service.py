@@ -79,6 +79,10 @@ class DiscoveryService:
             cast(Agent.metadata_["latency_p95_ms"].astext, Numeric),
             cast(Agent.metadata_["latency_estimate_ms"].astext, Numeric),
         )
+        cost_expr = func.coalesce(
+            cast(Agent.metadata_["cost"].astext, Numeric),
+            cast(Agent.metadata_["cost_estimate"]["value"].astext, Numeric),
+        )
         if max_latency is not None:
             query = query.where(latency_expr <= max_latency)
             count_query = count_query.where(latency_expr <= max_latency)
@@ -130,6 +134,12 @@ class DiscoveryService:
                     latency_expr.desc().nullslast()
                     if sort_dir == "desc"
                     else latency_expr.asc().nullsfirst()
+                )
+            elif sort_field == "cost":
+                query = query.order_by(
+                    cost_expr.desc().nullslast()
+                    if sort_dir == "desc"
+                    else cost_expr.asc().nullsfirst()
                 )
             elif sort_field == "registered_at":
                 query = query.order_by(
