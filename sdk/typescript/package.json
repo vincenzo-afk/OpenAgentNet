@@ -1,0 +1,22 @@
+{
+  "name": "@openagentnet/client",
+  "version": "0.1.0",
+  "description": "TypeScript client for the OpenAgentNet protocol",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test tests/client.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  },
+  "license": "Apache-2.0"
+}
