@@ -40,6 +40,30 @@ def build_parser() -> argparse.ArgumentParser:
     route.add_argument("--region")
     route.add_argument("--limit", type=int, default=5)
 
+    team = commands.add_parser("team", help="manage teams")
+    team_commands = team.add_subparsers(dest="team_command", required=True)
+    team_create = team_commands.add_parser("create")
+    team_create.add_argument("name")
+    team_create.add_argument("--description")
+    team_create.add_argument("--member", action="append", dest="member_agent_ids", default=[])
+    team_commands.add_parser("list")
+    team_commands.choices["list"].add_argument("--limit", type=int, default=20)
+    team_commands.choices["list"].add_argument("--offset", type=int, default=0)
+    team_get = team_commands.add_parser("get")
+    team_get.add_argument("team_id")
+    team_add = team_commands.add_parser("add-member")
+    team_add.add_argument("team_id")
+    team_add.add_argument("agent_id")
+    team_remove = team_commands.add_parser("remove-member")
+    team_remove.add_argument("team_id")
+    team_remove.add_argument("agent_id")
+    team_send = team_commands.add_parser("send")
+    team_send.add_argument("team_id")
+    team_send.add_argument("capability")
+    team_send.add_argument("payload", help="JSON object")
+    team_send.add_argument("--ttl-seconds", type=int, default=60)
+    team_send.add_argument("--constraints", default="{}", help="JSON object")
+
     task = commands.add_parser("task", help="work with tasks")
     task_commands = task.add_subparsers(dest="task_command", required=True)
     send = task_commands.add_parser("send")
@@ -88,6 +112,29 @@ def run(args: argparse.Namespace) -> int:
                 constraints={"region": args.region} if args.region else {},
                 limit=args.limit,
             )))
+        elif args.command == "team":
+            if args.team_command == "create":
+                print(_json(client.create_team(
+                    args.name,
+                    description=args.description,
+                    member_agent_ids=args.member_agent_ids,
+                )))
+            elif args.team_command == "list":
+                print(_json(client.list_teams(limit=args.limit, offset=args.offset)))
+            elif args.team_command == "get":
+                print(_json(client.get_team(args.team_id)))
+            elif args.team_command == "add-member":
+                print(_json(client.add_team_member(args.team_id, args.agent_id)))
+            elif args.team_command == "remove-member":
+                print(_json(client.remove_team_member(args.team_id, args.agent_id)))
+            elif args.team_command == "send":
+                print(_json(client.send_team_task(
+                    args.team_id,
+                    args.capability,
+                    _payload(args.payload),
+                    constraints=_payload(args.constraints),
+                    ttl_seconds=args.ttl_seconds,
+                )))
         elif args.command == "task":
             if args.task_command == "send":
                 print(_json(client.send_task(
