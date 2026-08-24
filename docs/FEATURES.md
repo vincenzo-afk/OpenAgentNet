@@ -203,9 +203,9 @@ A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Red
 
 **NFR-001: Availability** — Target 99.9% uptime for Phase 5 production deployment.
 
-**NFR-002: Latency** — Gateway API p99 < 100ms. Message delivery p95 < 500ms (NATS path).
+**NFR-002: Latency** — Gateway API p99 < 100ms. Message delivery p95 < 500ms (NATS path). The asynchronous load-test harness reports p50/p95/p99 and can enforce optional `--max-p95-ms` and `--max-p99-ms` gates; no production benchmark is implied by the harness alone.
 
-**NFR-003: Throughput** — Phase 1 target: 10,000 messages/minute. Phase 5 target: 1M messages/minute.
+**NFR-003: Throughput** — Phase 1 target: 10,000 messages/minute. Phase 5 target: 1M messages/minute. The harness reports requests per minute and can enforce `--min-requests-per-minute` plus `--min-success-rate` thresholds against a deployed environment.
 
 **NFR-004: Security** — Zero storage of agent private keys. Message signatures are verified whenever supplied; production deployments can set `REQUIRE_MESSAGE_SIGNATURES=true` to reject unsigned messages on both direct and team delivery paths. Audit log tamper-resistance remains required.
 

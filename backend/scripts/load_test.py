@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import math
+import sys
 import time
 from dataclasses import asdict, dataclass
 from typing import Sequence
@@ -94,6 +95,42 @@ async def run_load_test(
     )
 
 
+def evaluate_thresholds(
+    result: LoadTestResult,
+    *,
+    max_p95_ms: float | None = None,
+    max_p99_ms: float | None = None,
+    min_requests_per_minute: float | None = None,
+    min_success_rate: float | None = None,
+) -> dict[str, object]:
+    """Evaluate optional targets without implying they were measured in production."""
+    success_rate = (
+        result.successful_requests / result.total_requests * 100
+        if result.total_requests
+        else 0.0
+    )
+    checks: dict[str, bool] = {}
+    if max_p95_ms is not None:
+        checks["p95_ms"] = result.p95_ms <= max_p95_ms
+    if max_p99_ms is not None:
+        checks["p99_ms"] = result.p99_ms <= max_p99_ms
+    if min_requests_per_minute is not None:
+        checks["requests_per_minute"] = result.requests_per_minute >= min_requests_per_minute
+    if min_success_rate is not None:
+        checks["success_rate"] = success_rate >= min_success_rate
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "success_rate_percent": round(success_rate, 4),
+        "targets": {
+            "max_p95_ms": max_p95_ms,
+            "max_p99_ms": max_p99_ms,
+            "min_requests_per_minute": min_requests_per_minute,
+            "min_success_rate": min_success_rate,
+        },
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="OpenAgentNet asynchronous API load test")
     parser.add_argument("--base-url", default="http://localhost:8000")
@@ -102,6 +139,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--concurrency", type=int, default=500)
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--token")
+    parser.add_argument("--max-p95-ms", type=float)
+    parser.add_argument("--max-p99-ms", type=float)
+    parser.add_argument("--min-requests-per-minute", type=float)
+    parser.add_argument("--min-success-rate", type=float, choices=range(0, 101))
     return parser
 
 
@@ -117,7 +158,16 @@ def main() -> None:
             token=args.token,
         )
     )
-    print(json.dumps(result.to_dict(), indent=2, sort_keys=True))
+    assessment = evaluate_thresholds(
+        result,
+        max_p95_ms=args.max_p95_ms,
+        max_p99_ms=args.max_p99_ms,
+        min_requests_per_minute=args.min_requests_per_minute,
+        min_success_rate=args.min_success_rate,
+    )
+    print(json.dumps({"result": result.to_dict(), "thresholds": assessment}, indent=2, sort_keys=True))
+    if not assessment["passed"]:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
