@@ -12,6 +12,10 @@ def test_parser_supports_nested_task_commands() -> None:
     assert args.command == "task"
     assert args.task_command == "send"
     assert args.executor_id == "agent-1"
+    contract_args = build_parser().parse_args([
+        "task", "send", "agent-1", "echo", "{\"text\":\"hi\"}", "--contract-id", "contract-1"
+    ])
+    assert contract_args.contract_id == "contract-1"
 
 
 def test_payload_requires_json_object() -> None:

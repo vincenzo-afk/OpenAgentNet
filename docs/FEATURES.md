@@ -195,7 +195,7 @@ A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Red
 
 **FR-SDK-002: TypeScript Client SDK** — The TypeScript package provides browser/Node `fetch` support, typed APIs, asynchronous SSE chunk iteration, and optional `contractId` forwarding for negotiated tasks.
 
-**FR-CLI-001: oan CLI** — The command-line client supports discovery, routing, task operations, agent version history/diffs, streams, and proof verification with JSON output.
+**FR-CLI-001: oan CLI** — The command-line client supports discovery, routing, task operations, agent version history/diffs, streams, and proof verification with JSON output. `task send` accepts `--contract-id` for negotiated task execution.
 
 ---
 

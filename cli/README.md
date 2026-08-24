@@ -7,12 +7,13 @@ python -m pip install -e sdk/python
 python -m pip install -e cli
 ```
 
-Set `OAN_BASE_URL` and `OAN_TOKEN`, or pass `--base-url` and `--token` before the command. Every successful command prints JSON, while `task stream` prints one JSON event per received stream chunk.
+Set `OAN_BASE_URL` and `OAN_TOKEN`, or pass `--base-url` and `--token` before the command. Every successful command prints JSON, while `task stream` prints one JSON event per received stream chunk. `task send` accepts `--contract-id` for tasks backed by an accepted negotiation contract.
 
 ```bash
 oan discover --capability summarization --region eu
 oan route "Summarize this article" --capability summarization
 oan task send agent-id summarization '{"text":"..."}'
+oan task send agent-id summarization '{"text":"..."}' --contract-id contract-id
 oan task get task-id
 oan task stream task-id
 oan agent versions agent-id

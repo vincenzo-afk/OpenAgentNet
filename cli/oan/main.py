@@ -48,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     send.add_argument("payload", help="JSON object")
     send.add_argument("--ttl-seconds", type=int, default=60)
     send.add_argument("--constraints", default="{}", help="JSON object")
+    send.add_argument("--contract-id", help="accepted negotiation contract identifier")
     get = task_commands.add_parser("get")
     get.add_argument("task_id")
     stream = task_commands.add_parser("stream")
@@ -95,6 +96,7 @@ def run(args: argparse.Namespace) -> int:
                     _payload(args.payload),
                     constraints=_payload(args.constraints),
                     ttl_seconds=args.ttl_seconds,
+                    contract_id=args.contract_id,
                 )))
             elif args.task_command == "get":
                 print(_json(client.get_task(args.task_id)))
