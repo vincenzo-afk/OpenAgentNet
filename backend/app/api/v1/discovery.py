@@ -43,6 +43,7 @@ async def discover_agents(
     capability: str | None = None,
     tags: str | None = None,
     min_trust_score: float | None = None,
+    max_latency_p95_ms: int | None = None,
     status: str | None = None,
     region: str | None = None,
     limit: int = 10,
@@ -51,6 +52,8 @@ async def discover_agents(
     filters = {}
     if min_trust_score is not None:
         filters["min_trust_score"] = min_trust_score
+    if max_latency_p95_ms is not None:
+        filters["max_latency_p95_ms"] = max_latency_p95_ms
     if tags:
         filters["tags"] = tags.split(",")
     if status is not None:

@@ -4,7 +4,7 @@ import uuid
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy import func, select
+from sqlalchemy import Numeric, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.identifiers import parse_agent_id
@@ -50,14 +50,27 @@ class DiscoveryService:
                 )
 
         # Trust score filter via join
+        trust_joined = False
         min_trust = filters.get("min_trust_score")
         if min_trust is not None:
+            trust_joined = True
             query = query.join(TrustRecord, TrustRecord.agent_id == Agent.id).where(
                 TrustRecord.trust_score >= min_trust
             )
             count_query = count_query.join(TrustRecord, TrustRecord.agent_id == Agent.id).where(
                 TrustRecord.trust_score >= min_trust
             )
+
+        # P95 latency filter uses the normalized metadata fields exposed by
+        # registered agents. Unknown latency is excluded from bounded searches.
+        max_latency = filters.get("max_latency_p95_ms")
+        latency_expr = func.coalesce(
+            cast(Agent.metadata_["latency_p95_ms"].astext, Numeric),
+            cast(Agent.metadata_["latency_estimate_ms"].astext, Numeric),
+        )
+        if max_latency is not None:
+            query = query.where(latency_expr <= max_latency)
+            count_query = count_query.where(latency_expr <= max_latency)
 
         # Tag filter
         tags = filters.get("tags")
@@ -73,11 +86,22 @@ class DiscoveryService:
         if sort:
             sort_field, sort_dir = sort.split(":") if ":" in sort else (sort, "desc")
             if sort_field == "trust_score":
-                query = query.outerjoin(TrustRecord, TrustRecord.agent_id == Agent.id)
+                if not trust_joined:
+                    query = query.outerjoin(TrustRecord, TrustRecord.agent_id == Agent.id)
                 if sort_dir == "desc":
                     query = query.order_by(TrustRecord.trust_score.desc().nullslast())
                 else:
                     query = query.order_by(TrustRecord.trust_score.asc().nullsfirst())
+            elif sort_field == "latency_p95_ms":
+                query = query.order_by(
+                    latency_expr.desc().nullslast()
+                    if sort_dir == "desc"
+                    else latency_expr.asc().nullsfirst()
+                )
+            elif sort_field == "registered_at":
+                query = query.order_by(
+                    Agent.created_at.desc() if sort_dir == "desc" else Agent.created_at.asc()
+                )
             elif hasattr(Agent, sort_field):
                 col = getattr(Agent, sort_field)
                 query = query.order_by(col.desc() if sort_dir == "desc" else col.asc())
