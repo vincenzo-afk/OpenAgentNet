@@ -142,11 +142,13 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 ### Deliverables
 
-- [ ] Registry federation protocol (agents can register with local registries that sync to a global index)
-- [ ] NATS cluster configuration for multi-region
-- [ ] Cross-region discovery
-- [ ] Agent migration between regions
-- [ ] Full Kubernetes deployment manifests
+- [x] Authenticated registry federation protocol with signed agent-id validation and reconciliation sync
+- [x] NATS cluster and leaf-node configuration for multi-region deployments
+- [x] Cross-region discovery with region and federation provenance filters
+- [x] Operator-controlled agent migration between regions and registries
+- [x] Kubernetes deployment manifests for PostgreSQL, Redis, clustered NATS, backend replicas, probes, and migrations
+
+**Status**: `v1.0.0` implemented — deployment and control-plane primitives are ready for regional rollout.
 
 **Timeline estimate**: 6–8 weeks after Phase 6
 

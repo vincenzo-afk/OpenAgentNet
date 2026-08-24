@@ -158,6 +158,25 @@ Payment is held until task completion is confirmed. Dispute-triggered refund pat
 
 ---
 
+## Phase 7 Features — Distributed Execution
+
+**FR-FED-001: Registry Federation**
+Trusted registry peers can authenticate synchronization requests and reconcile remote agent records using deterministic public-key-derived identities. Local records remain authoritative over remote copies.
+
+**FR-FED-002: Cross-Region Discovery**
+Discovery supports an optional region filter and returns region, federation status, and origin registry metadata for each result.
+
+**FR-FED-003: Agent Migration**
+Operators can move an agent between regions and registries while preserving its identity and recording the previous origin.
+
+**FR-FED-004: Regional NATS Transport**
+NATS clients identify their registry and region, and deployment configuration supports clustered servers and optional leaf-node bridges.
+
+**FR-FED-005: Kubernetes Deployment**
+A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Redis, clustered NATS, readiness/liveness probes, persistent storage, and migration execution.
+
+---
+
 ## Non-Functional Requirements
 
 **NFR-001: Availability** — Target 99.9% uptime for Phase 5 production deployment.
