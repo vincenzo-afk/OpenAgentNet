@@ -22,6 +22,7 @@ from app.core.identifiers import build_did, derive_agent_id_from_bytes, parse_ag
 from app.core.security import create_access_token
 from app.models.agent import Agent, ApiKey
 from app.models.agent_version import AgentVersion
+from app.models.trust import TrustRecord
 from app.schemas.agent import AgentManifest
 
 
@@ -179,10 +180,14 @@ class RegistryService:
         agent.updated_at = utcnow()
         await db.flush()
         await self._record_version(db, agent)
+        trust_result = await db.execute(
+            select(TrustRecord.trust_score).where(TrustRecord.agent_id == agent.id)
+        )
+        persisted_score = trust_result.scalar_one_or_none()
         await sync_agent(
             agent.id,
             agent.capabilities or [],
-            trust_score=0.5,
+            trust_score=float(persisted_score) if persisted_score is not None else 0.5,
             active=agent.status == "active",
         )
         return self._agent_to_dict(agent)
