@@ -333,6 +333,48 @@ spec:
               cpu: 1
               memory: 1Gi
 ---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: openagentnet
+  namespace: openagentnet
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: openagentnet
+  minReplicas: 3
+  maxReplicas: 20
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: openagentnet
+  namespace: openagentnet
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: openagentnet
+---
 apiVersion: batch/v1
 kind: Job
 metadata:

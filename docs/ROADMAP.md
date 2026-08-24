@@ -151,7 +151,7 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 - [x] NATS cluster and leaf-node configuration for multi-region deployments
 - [x] Cross-region discovery with region and federation provenance filters
 - [x] Operator-controlled agent migration between regions and registries
-- [x] Kubernetes deployment manifests for PostgreSQL, Redis, clustered NATS, backend replicas, probes, and migrations
+- [x] Kubernetes deployment manifests for PostgreSQL, Redis, clustered NATS, backend replicas, probes, migrations, backend HPA (3–20 replicas), and PodDisruptionBudget
 
 **Status**: `v1.0.0` implemented — deployment and control-plane primitives are ready for regional rollout.
 
@@ -178,7 +178,8 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 **Status**: `v1.1.0` implemented — all previously unscheduled backlog items have a documented implementation and focused tests.
 
-The hardening toolkit now includes `backend/scripts/load_test.py`, an asynchronous HTTP harness with configurable request count, concurrency, timeout, authentication, status aggregation, and p50/p95/p99 latency reporting. Operators can use it to validate the documented 500-concurrent-agent and 10,000-messages-per-minute targets in an environment with the required services; this repository does not claim those production targets without an executed deployment benchmark.
+The hardening toolkit now includes `backend/scripts/load_test.py`, an asynchronous HTTP harness with configurable request count, concurrency, timeout, authentication, status aggregation, p50/p95/p99 latency reporting, and optional threshold gates for latency, throughput, and success rate.
+ Operators can use it to validate the documented 500-concurrent-agent and 10,000-messages-per-minute targets in an environment with the required services; this repository does not claim those production targets without an executed deployment benchmark.
 
 ---
 
