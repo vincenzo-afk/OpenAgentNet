@@ -15,12 +15,13 @@ export interface AgentSummary {
 }
 
 export interface Message {
-  id: string;
-  message_id?: string;
+  id?: string;
+  message_id: string;
   from_agent_id: string;
   to_agent_id: string;
   type: string;
   capability_name?: string | null;
+  capability?: string | null;
   payload: Record<string, unknown> | null;
   status: string;
   created_at: string;
@@ -92,13 +93,19 @@ export async function fetchTrust(agentId: string, token: string | null): Promise
 }
 
 export async function fetchMessages(agentId: string, token: string | null): Promise<Message[]> {
-  const resp = await fetch(`${BASE_URL}/messages?limit=50`, {
+  const query = new URLSearchParams({ limit: "50", agent_id: agentId });
+  const resp = await fetch(`${BASE_URL}/messages?${query.toString()}`, {
     headers: authHeaders(token),
     next: { revalidate: 5 },
   });
   if (!resp.ok) return [];
   const data = (await resp.json()) as { messages: Message[] } | { items: Message[] };
-  return (data as { messages?: Message[] }).messages || (data as { items?: Message[] }).items || [];
+  const items = (data as { messages?: Message[] }).messages || (data as { items?: Message[] }).items || [];
+  return items.map((item) => ({
+    ...item,
+    id: item.id || item.message_id,
+    capability_name: item.capability_name || item.capability || null,
+  }));
 }
 
 export async function fetchListings(token: string | null): Promise<MarketplaceListing[]> {

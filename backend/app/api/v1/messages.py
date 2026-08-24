@@ -15,6 +15,7 @@ from app.models.task import Task
 
 from app.core.database import get_session_factory
 from app.core.dependencies import get_db_session, require_scope
+from app.core.identifiers import parse_agent_id
 from app.models.task_stream import TaskStreamChunk
 from app.schemas.task import (
     MessageListResponse,
@@ -142,13 +143,24 @@ async def list_messages(
     type: str | None = None,
     since: str | None = None,
     until: str | None = None,
+    agent_id: str | None = None,
     limit: int = 20,
     offset: int = 0,
 ):
-    agent_id = payload.get("agent_id", "")
+    token_agent_id = payload.get("agent_id", "")
+    if agent_id:
+        requested = parse_agent_id(agent_id)
+        token_agent = parse_agent_id(token_agent_id)
+        if not requested:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid agent_id")
+        if requested != token_agent and "admin" not in payload.get("scopes", []):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot inspect another agent")
+        target_agent_id = agent_id
+    else:
+        target_agent_id = token_agent_id
     result = await messaging_service.list_messages(
         db,
-        agent_id=agent_id,
+        agent_id=target_agent_id,
         direction=direction,
         message_type=type,
         since=since,
