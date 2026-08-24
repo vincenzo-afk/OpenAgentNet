@@ -177,6 +177,28 @@ A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Red
 
 ---
 
+## Phase 8 Features — Advanced Execution and Developer Tooling
+
+**FR-STR-001: Incremental Task Streams** — Task participants can append contiguous, idempotent result chunks and consumers can replay them over Server-Sent Events until a final marker.
+
+**FR-ROU-001: Capability-Aware Routing** — A protected routing endpoint ranks active agents by capability fit and trust score, with optional OpenAI-compatible model selection constrained to pre-filtered candidates.
+
+**FR-VER-001: Agent Version History** — Registration and updates create immutable agent snapshots with revision numbers, endpoint, metadata, and capabilities.
+
+**FR-VER-002: Capability Diff** — Consumers can compare two agent revisions and receive added, removed, and changed capability records plus version, endpoint, and metadata change flags.
+
+**FR-TRU-007: Trust Component Plugins** — Operators can load trusted Python modules that register bounded, weighted trust components; component scores are persisted and exposed for audit.
+
+**FR-PRV-001: Privacy-Preserving Outcomes** — Task participants can publish a non-interactive binary outcome proof that verifies success/failure membership without storing the outcome or nonce.
+
+**FR-SDK-001: Python Client SDK** — The Python package provides registry, discovery, task, routing, streaming, versioning, and privacy-proof methods with typed errors.
+
+**FR-SDK-002: TypeScript Client SDK** — The TypeScript package provides browser/Node `fetch` support, typed APIs, and asynchronous SSE chunk iteration.
+
+**FR-CLI-001: oan CLI** — The command-line client supports discovery, routing, task operations, agent version history/diffs, streams, and proof verification with JSON output.
+
+---
+
 ## Non-Functional Requirements
 
 **NFR-001: Availability** — Target 99.9% uptime for Phase 5 production deployment.

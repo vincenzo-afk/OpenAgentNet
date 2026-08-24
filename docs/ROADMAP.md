@@ -154,18 +154,30 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 ---
 
+## Phase 8 — Advanced Execution and Developer Tooling
+
+**Goal**: Complete the distributed execution backlog with replayable streams, intelligent routing, auditable agent evolution, extensible trust scoring, privacy-preserving outcome proofs, and first-party developer tools.
+
+**Milestone**: `v1.1.0`
+
+### Deliverables
+
+- [x] Agent-to-agent streaming with ordered, idempotent task chunks and SSE replay
+- [x] Capability-aware deterministic routing with optional OpenAI-compatible LLM ranking
+- [x] Immutable agent version snapshots and capability diff API
+- [x] Pluggable trust-score component registry with operator visibility and persisted breakdowns
+- [x] Privacy-preserving binary outcome proofs using a non-interactive Schnorr OR proof transcript
+- [x] Python client SDK for registry, discovery, tasks, routing, streaming, versioning, and proofs
+- [x] TypeScript client SDK with browser/Node `fetch` support and typed SSE streaming
+- [x] `oan` CLI for discovery, routing, task operations, agent history, and proof verification
+
+**Status**: `v1.1.0` implemented — all previously unscheduled backlog items have a documented implementation and focused tests.
+
+---
+
 ## Backlog (Unscheduled)
 
-These features are planned but not yet scoped into a phase:
-
-- Agent-to-agent streaming (long-running tasks with incremental results)
-- LLM-assisted task routing (use an LLM to pick the best agent for a task description)
-- Agent versioning and capability diff
-- Plugin system for custom trust score components
-- Privacy-preserving task logs (ZK proofs for outcome verification)
-- SDK: Python client library
-- SDK: TypeScript client library
-- CLI: `oan` command-line tool
+No unscheduled backlog items remain from the original project feature inventory.
 
 ---
 
