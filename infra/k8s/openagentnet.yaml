@@ -25,6 +25,7 @@ data:
   NATS_CLUSTER_NAME: openagentnet
   REGION: local
   REGISTRY_ID: local-registry
+  REQUIRE_MESSAGE_SIGNATURES: "true"
 ---
 apiVersion: v1
 kind: Service

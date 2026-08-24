@@ -173,7 +173,7 @@ Operators can move an agent between regions and registries while preserving its 
 NATS clients identify their registry and region, and deployment configuration supports clustered servers and optional leaf-node bridges.
 
 **FR-FED-005: Kubernetes Deployment**
-A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Redis, clustered NATS, readiness/liveness probes, persistent storage, and migration execution. Backend liveness uses `/v1/health`; dependency readiness uses `/v1/ready`, which checks PostgreSQL and reports Redis/NATS status for operators. Development Compose also waits for healthy PostgreSQL, Redis, and NATS services and probes the backend health endpoint before declaring startup successful.
+A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Redis, clustered NATS, readiness/liveness probes, persistent storage, and migration execution. Backend liveness uses `/v1/health`; dependency readiness uses `/v1/ready`, which checks PostgreSQL and reports Redis/NATS status for operators. The Kubernetes baseline enables `REQUIRE_MESSAGE_SIGNATURES=true`; development Compose leaves the policy disabled for local compatibility while still verifying supplied signatures. Development Compose also waits for healthy PostgreSQL, Redis, and NATS services and probes the backend health endpoint before declaring startup successful.
 
 ---
 

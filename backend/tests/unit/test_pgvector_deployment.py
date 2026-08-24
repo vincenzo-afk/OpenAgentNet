@@ -21,6 +21,7 @@ def test_kubernetes_backend_has_scaling_and_disruption_controls():
     assert "maxReplicas: 20" in manifest
     assert "kind: PodDisruptionBudget" in manifest
     assert "minAvailable: 2" in manifest
+    assert 'REQUIRE_MESSAGE_SIGNATURES: "true"' in manifest
 
 
 def test_semantic_memory_migration_enables_vector_extension():
