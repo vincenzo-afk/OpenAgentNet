@@ -113,7 +113,7 @@ Agreed negotiation terms are persisted as a `task_contract` record. Tasks must r
 Trust scores update based on task completion rate, latency adherence, and dispute outcomes.
 
 **FR-TRU-004: Behavioral Anomaly Detection**
-Automated detection of flood, failure rate, and schema violation patterns. Flagged agents have rate limits reduced.
+Automated detection records flood, sustained failure-rate, and repeated schema-violation patterns in Redis-backed windows. Flagged agents receive a temporary reduced endpoint rate limit, while anomaly events remain visible to operators through the trust audit stream.
 
 **FR-TRU-005: Trust Event History**
 Per-agent log of all trust score changes with event type, delta, and reference.

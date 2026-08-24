@@ -14,8 +14,9 @@ from app.core.audit import log_audit_event
 from app.core.config import get_settings
 from app.core.crypto import base64_to_public_key, canonical_json_bytes, verify_signature
 from app.core.identifiers import parse_agent_id
+from app.core.anomaly import observe_anomaly
 from app.core.nats_client import publish_agent_announce, publish_to_agent
-from app.core.schema_validation import validate_payload
+from app.core.schema_validation import PayloadValidationError, validate_payload
 from app.models.agent import Agent
 from app.models.task import Task
 
@@ -181,7 +182,15 @@ class MessagingService:
             input_schema = self._capability_input_schema(recipient, capability)
             if input_schema is not None:
                 payload = task_data.get("payload", {}) if isinstance(task_data, dict) else {}
-                validate_payload(payload, input_schema)
+                try:
+                    validate_payload(payload, input_schema)
+                except PayloadValidationError:
+                    await observe_anomaly(
+                        str(sender.id),
+                        "schema_violation",
+                        threshold=3,
+                    )
+                    raise
 
         # Create task record
         task = Task(

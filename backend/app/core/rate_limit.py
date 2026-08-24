@@ -7,6 +7,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
+from app.core.anomaly import is_anomaly_flagged, observe_anomaly
 from app.core.config import get_settings
 from app.core.database import get_redis
 
@@ -51,6 +52,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         limit, window = rate_limit
 
+        # Anomaly flags temporarily reduce the subject's normal limit while
+        # preserving a small allowance for recovery and operator access.
+        if await is_anomaly_flagged(client_id):
+            limit = max(1, limit // 4)
+
         # Check rate limit in Redis
         try:
             redis = await get_redis()
@@ -60,6 +66,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 await redis.expire(key, window)
 
             if current > limit:
+                await observe_anomaly(
+                    client_id,
+                    "flood",
+                    threshold=3,
+                    window_seconds=window,
+                )
                 retry_after = await redis.ttl(key)
                 return JSONResponse(
                     status_code=429,

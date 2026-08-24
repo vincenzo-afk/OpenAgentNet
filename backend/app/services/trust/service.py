@@ -294,7 +294,30 @@ class TrustService:
             target_record.updated_at = utcnow()
 
     async def _check_anomalies(self, db: AsyncSession, record: TrustRecord) -> None:
-        """Sudden success-rate spike after a dormant period."""
+        """Detect dormant success spikes and sustained task failure rates."""
+        if record.total_tasks >= 5 and record.total_tasks % 5 == 0:
+            failure_rate = 1.0 - float(record.outcome_rate)
+            if failure_rate >= 0.60:
+                await self._emit_anomaly(
+                    db,
+                    record.agent_id,
+                    "failure_rate_high",
+                    {
+                        "total_tasks": record.total_tasks,
+                        "failure_rate": round(failure_rate, 3),
+                    },
+                )
+                try:
+                    from app.core.anomaly import observe_anomaly
+                    await observe_anomaly(
+                        str(record.agent_id),
+                        "failure_rate",
+                        threshold=1,
+                        window_seconds=15 * 60,
+                    )
+                except Exception:
+                    logger.exception("Unable to flag high failure rate for %s", record.agent_id)
+
         if record.total_tasks < 5 or record.last_computed_at is None:
             return
         if (utcnow() - record.last_computed_at).total_seconds() < 86400 * 7:
