@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.task import Task
 
+from app.core.database import get_session_factory
 from app.core.dependencies import get_db_session, require_scope
+from app.models.task_stream import TaskStreamChunk
 from app.schemas.task import (
     MessageListResponse,
     SendMessageRequest,
@@ -19,6 +24,8 @@ from app.schemas.task import (
     TaskCreateResponse,
     TaskListResponse,
     TaskResponse,
+    TaskStreamChunkRequest,
+    TaskStreamChunkResponse,
 )
 from app.services.messaging import MessagingService
 
@@ -180,6 +187,145 @@ async def create_task(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@task_router.post(
+    "/{task_id}/stream",
+    response_model=TaskStreamChunkResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def append_task_stream_chunk(
+    task_id: str,
+    body: TaskStreamChunkRequest,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("messages:send"))],
+):
+    """Append an ordered incremental result chunk for a task.
+
+    Chunks are idempotent by ``(task_id, sequence)``. Executors may append
+    partial results while the task remains running, then mark the final chunk
+    with ``is_final`` before reporting the terminal task result.
+    """
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid task_id") from exc
+
+    result = await db.execute(select(Task).where(Task.id == task_uuid))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    actor_id = payload.get("agent_id", "")
+    if str(task.to_agent_id) != actor_id and str(task.from_agent_id) != actor_id:
+        raise HTTPException(status_code=403, detail="Only participants may append stream chunks")
+
+    existing_result = await db.execute(
+        select(TaskStreamChunk).where(
+            TaskStreamChunk.task_id == task_uuid,
+            TaskStreamChunk.sequence == body.sequence,
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing:
+        if existing.chunk != body.chunk or existing.is_final != body.is_final:
+            raise HTTPException(status_code=409, detail="Stream sequence already contains different data")
+        return TaskStreamChunkResponse(
+            task_id=str(existing.task_id),
+            sequence=existing.sequence,
+            chunk=existing.chunk,
+            is_final=existing.is_final,
+            created_at=existing.created_at,
+        )
+
+    if body.sequence > 0:
+        previous_result = await db.execute(
+            select(TaskStreamChunk).where(
+                TaskStreamChunk.task_id == task_uuid,
+                TaskStreamChunk.sequence == body.sequence - 1,
+            )
+        )
+        if previous_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=400, detail="Stream sequence must be contiguous")
+
+    chunk = TaskStreamChunk(
+        task_id=task_uuid,
+        sequence=body.sequence,
+        chunk=body.chunk,
+        is_final=body.is_final,
+    )
+    db.add(chunk)
+    if task.status in ("pending", "acked"):
+        task.status = "running"
+    await db.flush()
+    return TaskStreamChunkResponse(
+        task_id=str(chunk.task_id),
+        sequence=chunk.sequence,
+        chunk=chunk.chunk,
+        is_final=chunk.is_final,
+        created_at=chunk.created_at,
+    )
+
+
+@task_router.get("/{task_id}/stream")
+async def stream_task_chunks(
+    task_id: str,
+    payload: Annotated[dict, Depends(require_scope("tasks:read"))],
+):
+    """Replay existing chunks and stream future chunks as SSE events."""
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid task_id") from exc
+
+    actor_id = payload.get("agent_id", "")
+    factory = get_session_factory()
+    async with factory() as session:
+        task_result = await session.execute(select(Task).where(Task.id == task_uuid))
+        task = task_result.scalar_one_or_none()
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        if str(task.to_agent_id) != actor_id and str(task.from_agent_id) != actor_id:
+            raise HTTPException(status_code=403, detail="Only participants may read stream chunks")
+
+    async def events() -> AsyncIterator[str]:
+        next_sequence = 0
+        deadline = asyncio.get_running_loop().time() + 3600
+        while asyncio.get_running_loop().time() < deadline:
+            async with factory() as session:
+                result = await session.execute(
+                    select(TaskStreamChunk)
+                    .where(
+                        TaskStreamChunk.task_id == task_uuid,
+                        TaskStreamChunk.sequence >= next_sequence,
+                    )
+                    .order_by(TaskStreamChunk.sequence.asc())
+                )
+                chunks = result.scalars().all()
+            for chunk in chunks:
+                if chunk.sequence != next_sequence:
+                    continue
+                payload_data = {
+                    "task_id": str(chunk.task_id),
+                    "sequence": chunk.sequence,
+                    "chunk": chunk.chunk,
+                    "is_final": chunk.is_final,
+                    "created_at": chunk.created_at.isoformat(),
+                }
+                yield f"id: {chunk.sequence}\\ndata: {json.dumps(payload_data, default=str)}\\n\\n"
+                next_sequence += 1
+                if chunk.is_final:
+                    return
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @task_router.get("/{task_id}", response_model=TaskResponse)

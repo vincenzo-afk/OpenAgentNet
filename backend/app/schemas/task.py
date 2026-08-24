@@ -101,6 +101,20 @@ class TaskCreateResponse(BaseModel):
     created_at: datetime
 
 
+class TaskStreamChunkRequest(BaseModel):
+    sequence: int = Field(ge=0)
+    chunk: dict[str, Any]
+    is_final: bool = False
+
+
+class TaskStreamChunkResponse(BaseModel):
+    task_id: str
+    sequence: int
+    chunk: dict[str, Any]
+    is_final: bool
+    created_at: datetime
+
+
 class TaskResponse(BaseModel):
     task_id: str
     initiator_id: str

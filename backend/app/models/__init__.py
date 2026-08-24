@@ -7,6 +7,7 @@ from app.models.memory import MemoryObject, MemoryPermission
 from app.models.negotiation import Negotiation
 from app.models.negotiation_round import NegotiationRound
 from app.models.task import Task
+from app.models.task_stream import TaskStreamChunk
 from app.models.trust import Dispute, Endorsement, TrustRecord
 from app.models.workflow import Workflow, WorkflowTask
 
@@ -15,6 +16,7 @@ __all__ = [
     "Agent",
     "ApiKey",
     "Task",
+    "TaskStreamChunk",
     "TrustRecord",
     "Endorsement",
     "Dispute",
