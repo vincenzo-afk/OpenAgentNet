@@ -70,7 +70,7 @@ class RegistryService:
             owner_id=uuid.UUID(manifest.owner.get("id", str(uuid.uuid4()))),
             owner_type=manifest.owner.get("type", "user"),
             status="active",
-            region=manifest.region or get_settings().region,
+            region=(manifest.metadata or {}).get("region") or get_settings().region,
             is_federated=False,
             origin_registry_id=get_settings().registry_id,
             endpoint=manifest.endpoint,
