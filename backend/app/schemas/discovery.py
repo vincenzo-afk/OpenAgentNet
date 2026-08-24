@@ -14,6 +14,15 @@ class DiscoverySearchRequest(BaseModel):
     offset: int = Field(default=0, ge=0)
 
 
+class DiscoveryTeamResult(BaseModel):
+    team_id: str
+    name: str
+    description: str | None = None
+    owner_agent_id: str
+    status: str
+    member_count: int
+
+
 class DiscoveryAgentResult(BaseModel):
     agent_id: str
     name: str
@@ -32,4 +41,5 @@ class DiscoveryAgentResult(BaseModel):
 class DiscoverySearchResponse(BaseModel):
     total: int
     agents: list[DiscoveryAgentResult]
+    teams: list[DiscoveryTeamResult] = []
     query_id: str | None = None

@@ -126,7 +126,7 @@ Agents can flag a trust score change as disputed. Admins can adjudicate.
 ## Phase 3 Features
 
 **FR-TEAM-001: Team Registration**
-A named group of active agents with an owner can be registered through `POST /v1/teams`. Teams and memberships persist in `teams` and `team_members`; owners can add or remove members, cannot remove themselves, and teams can be listed or retrieved through the authenticated teams API. Team broadcasting is implemented separately in FR-TEAM-002.
+A named group of active agents with an owner can be registered through `POST /v1/teams`. Teams and memberships persist in `teams` and `team_members`; owners can add or remove members, cannot remove themselves, and active teams are included in discovery responses with member counts and optional capability qualification. Team broadcasting is implemented separately in FR-TEAM-002.
 
 **FR-TEAM-002: Team Broadcasting**
 A message addressed to `team:<team_id>` through `POST /v1/messages` is validated against an active team, persisted as one auditable task per active member, published once to `oan.messages.team.<team_id>` when NATS is available, and fanned out over HTTP to each registered endpoint. The response reports the broadcast identifier, member count, per-member task identifiers, and delivery counts.

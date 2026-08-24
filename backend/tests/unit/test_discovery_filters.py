@@ -47,7 +47,7 @@ async def test_discovery_supports_latency_filter_and_sort() -> None:
     )
 
     assert result["total"] == 0
-    assert len(db.statements) == 2
+    assert len(db.statements) == 3
     compiled = [statement.compile(dialect=dialect()) for statement in db.statements]
     sql = "\n".join(str(statement) for statement in compiled)
     assert "trust_records" in sql
@@ -79,7 +79,7 @@ async def test_empty_capability_index_short_circuits_authoritative_query() -> No
 
     assert result["total"] == 0
     assert result["agents"] == []
-    assert len(db.statements) == 2
+    assert len(db.statements) == 3
     sql = "\n".join(str(statement.compile(dialect=dialect())) for statement in db.statements)
     assert "agents.id IN" in sql
 

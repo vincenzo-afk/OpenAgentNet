@@ -5,11 +5,13 @@ from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy import Numeric, cast, func, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.capability_index import candidate_ids
 from app.core.identifiers import parse_agent_id
 from app.models.agent import Agent
+from app.models.team import Team, TeamMember
 from app.models.trust import TrustRecord
 
 
@@ -181,9 +183,47 @@ class DiscoveryService:
                 }
             )
 
+        team_query = (
+            select(Team, func.count(TeamMember.agent_id).label("member_count"))
+            .join(TeamMember, TeamMember.team_id == Team.id)
+            .join(Agent, Agent.id == TeamMember.agent_id)
+            .where(
+                Team.status == "active",
+                Agent.status == "active",
+                Agent.deleted_at.is_(None),
+            )
+            .group_by(Team.id)
+        )
+        for capability in capabilities or []:
+            safe_cap = [{"name": capability}]
+            member_match = (
+                select(TeamMember.team_id)
+                .join(Agent, Agent.id == TeamMember.agent_id)
+                .where(
+                    TeamMember.team_id == Team.id,
+                    Agent.status == "active",
+                    Agent.deleted_at.is_(None),
+                    Agent.capabilities.op("@>")(sa.cast(safe_cap, JSONB)),
+                )
+            )
+            team_query = team_query.where(sa.exists(member_match))
+        team_rows = (await db.execute(team_query)).all()
+        teams = [
+            {
+                "team_id": str(team.id),
+                "name": team.name,
+                "description": team.description,
+                "owner_agent_id": str(team.owner_agent_id),
+                "status": team.status,
+                "member_count": int(member_count),
+            }
+            for team, member_count in team_rows
+        ]
+
         return {
             "total": total,
             "agents": items,
+            "teams": teams,
             "query_id": str(uuid.uuid4()),
         }
 
