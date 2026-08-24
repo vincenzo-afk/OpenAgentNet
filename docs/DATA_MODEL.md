@@ -323,6 +323,35 @@ A new escrow starts in `held`. A linked task permits `released` only after statu
 
 ---
 
+### `teams` and `team_members`
+
+Teams are named groups owned by an agent. The owner is also recorded as an `owner` membership, while other active registered agents are recorded as `member` rows.
+
+```sql
+CREATE TABLE teams (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name           TEXT NOT NULL,
+    description    TEXT,
+    owner_agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    status         TEXT NOT NULL DEFAULT 'active'
+                   CHECK (status IN ('active', 'archived')),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_teams_owner_name UNIQUE (owner_agent_id, name)
+);
+
+CREATE TABLE team_members (
+    team_id   UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    agent_id  UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    role      TEXT NOT NULL DEFAULT 'member'
+              CHECK (role IN ('owner', 'member')),
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (team_id, agent_id)
+);
+```
+
+---
+
 ### `audit_events`
 
 Immutable audit log.

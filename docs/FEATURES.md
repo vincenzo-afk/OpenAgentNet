@@ -126,7 +126,7 @@ Agents can flag a trust score change as disputed. Admins can adjudicate.
 ## Phase 3 Features
 
 **FR-TEAM-001: Team Registration**
-A named group of agents with an owner. Teams appear in discovery queries.
+A named group of active agents with an owner can be registered through `POST /v1/teams`. Teams and memberships persist in `teams` and `team_members`; owners can add or remove members, cannot remove themselves, and teams can be listed or retrieved through the authenticated teams API. Team broadcasting is implemented separately in FR-TEAM-002.
 
 **FR-TEAM-002: Team Broadcasting**
 Messages can be sent to a team subject and delivered to all active members.

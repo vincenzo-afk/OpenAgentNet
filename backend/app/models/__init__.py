@@ -10,6 +10,7 @@ from app.models.negotiation_round import NegotiationRound
 from app.models.task import Task
 from app.models.task_stream import TaskStreamChunk
 from app.models.task_proof import TaskPrivacyProof
+from app.models.team import Team, TeamMember
 from app.models.trust import Dispute, Endorsement, TrustRecord
 from app.models.workflow import Workflow, WorkflowTask
 
@@ -21,6 +22,8 @@ __all__ = [
     "Task",
     "TaskStreamChunk",
     "TaskPrivacyProof",
+    "Team",
+    "TeamMember",
     "TrustRecord",
     "Endorsement",
     "Dispute",

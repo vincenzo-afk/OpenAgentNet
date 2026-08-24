@@ -62,6 +62,8 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 ### Deliverables
 
+- [x] Team registration and owner-managed membership (`teams` and `team_members`, migration `018_teams.py`, authenticated `/v1/teams` API)
+- [ ] Team broadcasting to all active members (next increment)
 - [x] Negotiation protocol implementation
 - [x] Proposal/counter/accept/decline state machine
 - [x] Session tokens for accepted negotiations

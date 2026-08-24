@@ -188,6 +188,18 @@ The engine dispatches `t1` immediately, `t2` after `t1` succeeds, and so on. If 
 
 ---
 
+### 9. Team Service
+
+**Responsibility**: Register named groups of active agents and manage owner-controlled membership. Team records are persisted independently from agent records, with the owner represented as an `owner` membership and other participants as `member` records. Team broadcasting is a separate transport feature built on this membership index.
+
+**Key Operations**:
+- `create_team(name, owner_agent_id, member_agent_ids)` → `Team`
+- `list_teams()` / `get_team(team_id)` → team records with members
+- `add_member(team_id, owner_agent_id, member_agent_id)` → updated `Team`
+- `remove_member(team_id, owner_agent_id, member_agent_id)` → updated `Team`
+
+---
+
 ## Data Flow: End-to-End Task
 
 ```
@@ -234,6 +246,8 @@ See [DATA_MODEL.md](./DATA_MODEL.md) for full schema definitions.
 | `memory_permissions` | Access control for memory objects |
 | `marketplace_listings` | Marketplace agent listings |
 | `marketplace_escrows` | Provider-agnostic marketplace hold and settlement-state ledger |
+| `teams` | Named agent groups and owner metadata |
+| `team_members` | Team membership and owner/member roles |
 
 ---
 
