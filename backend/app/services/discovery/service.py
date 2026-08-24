@@ -83,6 +83,26 @@ class DiscoveryService:
             query = query.where(latency_expr <= max_latency)
             count_query = count_query.where(latency_expr <= max_latency)
 
+        # Exclude explicitly listed agents from both result and count queries.
+        excluded_ids = [parse_agent_id(value) for value in filters.get("exclude", [])]
+        excluded_ids = [value for value in excluded_ids if value]
+        if excluded_ids:
+            query = query.where(Agent.id.not_in(excluded_ids))
+            count_query = count_query.where(Agent.id.not_in(excluded_ids))
+
+        # Protocol-level language and arbitrary metadata filters are stored in
+        # the agent metadata JSONB column and use parameterized JSON operators.
+        language = filters.get("language")
+        if language:
+            language_expr = Agent.metadata_["language"].astext == language
+            query = query.where(language_expr)
+            count_query = count_query.where(language_expr)
+        for key, value in (filters.get("metadata") or {}).items():
+            if isinstance(key, str) and value is not None:
+                metadata_expr = Agent.metadata_[key].astext == str(value)
+                query = query.where(metadata_expr)
+                count_query = count_query.where(metadata_expr)
+
         # Tag filter
         tags = filters.get("tags")
         if tags:
@@ -95,7 +115,9 @@ class DiscoveryService:
 
         # Sort
         if sort:
-            sort_field, sort_dir = sort.split(":") if ":" in sort else (sort, "desc")
+            sort_field, sort_dir = sort.split(":", 1) if ":" in sort else (sort, "desc")
+            sort_field = {"latency": "latency_p95_ms", "registered": "registered_at"}.get(sort_field, sort_field)
+            sort_dir = sort_dir.lower() if sort_dir.lower() in {"asc", "desc"} else "desc"
             if sort_field == "trust_score":
                 if not trust_joined:
                     query = query.outerjoin(TrustRecord, TrustRecord.agent_id == Agent.id)

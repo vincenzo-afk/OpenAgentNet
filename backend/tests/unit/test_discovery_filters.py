@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from sqlalchemy.dialects.postgresql import dialect
 
 from app.services.discovery import DiscoveryService
@@ -33,7 +35,13 @@ async def test_discovery_supports_latency_filter_and_sort() -> None:
     result = await DiscoveryService().search(
         db,
         capabilities=["summarize"],
-        filters={"min_trust_score": 0.7, "max_latency_p95_ms": 2500},
+        filters={
+            "min_trust_score": 0.7,
+            "max_latency_p95_ms": 2500,
+            "language": "en",
+            "metadata": {"domain": "nlp"},
+            "exclude": [str(uuid.uuid4())],
+        },
         sort="latency_p95_ms:asc",
     )
 
@@ -42,6 +50,7 @@ async def test_discovery_supports_latency_filter_and_sort() -> None:
     compiled = [statement.compile(dialect=dialect()) for statement in db.statements]
     sql = "\n".join(str(statement) for statement in compiled)
     assert "trust_records" in sql
+    assert sql.count("JOIN trust_records") == 2  # one count query and one result query
     assert "agents.capabilities" in sql
     bind_values = {
         value
@@ -49,4 +58,4 @@ async def test_discovery_supports_latency_filter_and_sort() -> None:
         for value in statement.params.values()
         if isinstance(value, (str, int, float))
     }
-    assert {"latency_p95_ms", "latency_estimate_ms"}.issubset(bind_values)
+    assert {"latency_p95_ms", "latency_estimate_ms", "language", "domain"}.issubset(bind_values)
