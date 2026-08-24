@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_subject, get_db_session, require_scope
@@ -35,6 +35,37 @@ registry_service = RegistryService()
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     return HealthResponse()
+
+
+@router.get("/ready")
+async def readiness_check(db: Annotated[AsyncSession, Depends(get_db_session)]):
+    """Report dependency readiness for orchestration probes."""
+    checks: dict[str, str] = {}
+    try:
+        await db.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "unavailable"
+
+    try:
+        from app.core.database import get_redis
+
+        redis = await get_redis()
+        await redis.ping()
+        checks["redis"] = "ok"
+    except Exception:
+        checks["redis"] = "unavailable"
+
+    from app.core import nats_client
+
+    checks["nats"] = "ok" if nats_client.is_nats_available() else "unavailable"
+    ready = checks["database"] == "ok"
+    response = {"status": "ready" if ready else "not_ready", "checks": checks}
+    if not ready:
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(status_code=503, content=response)
+    return response
 
 
 @router.get("/admin/agents")

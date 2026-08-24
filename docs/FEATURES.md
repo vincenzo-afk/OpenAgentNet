@@ -173,7 +173,7 @@ Operators can move an agent between regions and registries while preserving its 
 NATS clients identify their registry and region, and deployment configuration supports clustered servers and optional leaf-node bridges.
 
 **FR-FED-005: Kubernetes Deployment**
-A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Redis, clustered NATS, readiness/liveness probes, persistent storage, and migration execution.
+A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Redis, clustered NATS, readiness/liveness probes, persistent storage, and migration execution. Backend liveness uses `/v1/health`; dependency readiness uses `/v1/ready`, which checks PostgreSQL and reports Redis/NATS status for operators.
 
 ---
 
@@ -201,7 +201,7 @@ A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Red
 
 ## Non-Functional Requirements
 
-**NFR-001: Availability** — Target 99.9% uptime for Phase 5 production deployment.
+**NFR-001: Availability** — Target 99.9% uptime for Phase 5 production deployment. Kubernetes uses separate liveness and dependency-aware readiness probes so unavailable database dependencies remove backend pods from service; the target itself remains unmeasured in this repository.
 
 **NFR-002: Latency** — Gateway API p99 < 100ms. Message delivery p95 < 500ms (NATS path). The asynchronous load-test harness reports p50/p95/p99 and can enforce optional `--max-p95-ms` and `--max-p99-ms` gates; no production benchmark is implied by the harness alone.
 

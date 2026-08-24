@@ -315,7 +315,7 @@ spec:
                   key: OPERATOR_SECRET
           readinessProbe:
             httpGet:
-              path: /v1/health
+              path: /v1/ready
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
