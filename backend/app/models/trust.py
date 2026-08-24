@@ -36,6 +36,7 @@ class TrustRecord(Base):
     endorsement_score: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, default=0.500)
     age_factor: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, default=0.100)
     dispute_penalty: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, default=0.000)
+    component_scores: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
     total_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     successful_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     dispute_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

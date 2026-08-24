@@ -25,6 +25,7 @@ def _verify_operator_secret(secret: str | None) -> bool:
     return bool(expected) and secret == expected
 
 from app.services.trust import TrustService
+from app.services.trust.components import get_trust_components
 
 router = APIRouter(prefix="/trust", tags=["trust"])
 trust_service = TrustService()
@@ -116,6 +117,18 @@ async def list_disputes(
         db, status=status_filter, limit=limit, offset=offset
     )
     return DisputeListResponse(**result)
+
+
+@router.get("/components")
+async def list_trust_components(
+    _payload: Annotated[dict, Depends(require_scope("admin"))],
+):
+    return {
+        "components": [
+            {"name": item.name, "weight": item.weight, "description": item.description}
+            for item in get_trust_components()
+        ]
+    }
 
 
 @router.get("/{agent_id}", response_model=TrustScoreResponse)

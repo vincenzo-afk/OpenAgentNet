@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     routing_llm_model: str = "openagent-router"
     routing_llm_timeout_seconds: float = 5.0
 
+    # Comma-separated trusted Python modules exposing register_trust_components(registry).
+    trust_plugin_modules: str = ""
+
     # JWT
     jwt_private_key_path: str = str(Path(__file__).resolve().parent.parent.parent / "keys" / "jwt_private.pem")
     jwt_public_key_path: str = str(Path(__file__).resolve().parent.parent.parent / "keys" / "jwt_public.pem")

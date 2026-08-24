@@ -18,6 +18,7 @@ Anomaly detection emits `anomaly_detected` trust events for:
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
@@ -31,6 +32,9 @@ from app.core.config import get_settings
 from app.core.identifiers import parse_agent_id
 from app.models.task import Task
 from app.models.trust import Dispute, Endorsement, TrustRecord
+from app.services.trust.components import get_trust_components
+
+logger = logging.getLogger(__name__)
 
 BURST_WINDOW_MINUTES = 5
 BURST_THRESHOLD = 3
@@ -58,16 +62,25 @@ class TrustService:
         return round(factor, 3)
 
     def _compute_trust_score(self, record: TrustRecord) -> float:
-        settings = get_settings()
         age_factor = self._score_age(record)
         record.age_factor = age_factor
-        score = (
-            settings.trust_weight_outcome * float(record.outcome_rate)
-            + settings.trust_weight_latency * 0.8  # placeholder for latency adherence
-            + settings.trust_weight_dispute * (1.0 - float(record.dispute_penalty))
-            + settings.trust_weight_age * age_factor
-        )
-        return round(min(max(score, 0.0), 1.0), 3)
+        weighted_total = 0.0
+        weight_total = 0.0
+        component_scores: dict[str, float] = {}
+        for component in get_trust_components():
+            try:
+                value = float(component.compute(record))
+            except Exception:
+                logger.exception("Trust component %s failed", component.name)
+                continue
+            value = min(max(value, 0.0), 1.0)
+            component_scores[component.name] = round(value, 6)
+            weighted_total += component.weight * value
+            weight_total += component.weight
+        record.component_scores = component_scores
+        if weight_total == 0:
+            return 0.5
+        return round(min(max(weighted_total / weight_total, 0.0), 1.0), 3)
 
     async def get_trust_record(self, db: AsyncSession, agent_id: str) -> dict[str, Any] | None:
         resolved = parse_agent_id(agent_id)
@@ -529,16 +542,18 @@ class TrustService:
         return sorted(events, key=lambda x: x.get("timestamp") or "", reverse=True)[:limit]
 
     def _record_to_dict(self, record: TrustRecord) -> dict[str, Any]:
+        components = {
+            "task_completion_rate": float(record.outcome_rate),
+            "latency_adherence": 0.8,
+            "endorsement_score": float(record.endorsement_score),
+            "dispute_penalty": float(record.dispute_penalty),
+            "age_factor": float(record.age_factor),
+        }
+        components.update(record.component_scores or {})
         return {
             "agent_id": str(record.agent_id),
             "score": float(record.trust_score),
-            "components": {
-                "task_completion_rate": float(record.outcome_rate),
-                "latency_adherence": 0.8,
-                "endorsement_score": float(record.endorsement_score),
-                "dispute_penalty": float(record.dispute_penalty),
-                "age_factor": float(record.age_factor),
-            },
+            "components": components,
             "total_tasks": record.total_tasks,
             "successful_tasks": record.successful_tasks,
             "dispute_count": record.dispute_count,
