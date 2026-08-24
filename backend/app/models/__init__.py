@@ -1,5 +1,6 @@
 from app.models.agent import Agent, ApiKey
 from app.models.audit import AuditEvent
+from app.models.federation import FederatedRegistry
 from app.models.base import Base
 from app.models.marketplace import MarketplaceListing
 from app.models.memory import MemoryObject, MemoryPermission
@@ -25,4 +26,5 @@ __all__ = [
     "MemoryPermission",
     "MarketplaceListing",
     "AuditEvent",
+    "FederatedRegistry",
 ]

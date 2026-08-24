@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.agents import router as agents_router
 from app.api.v1.common import router as common_router
 from app.api.v1.discovery import router as discovery_router
+from app.api.v1.federation import router as federation_router
 from app.api.v1.marketplace import router as marketplace_router
 from app.api.v1.memory import router as memory_router
 from app.api.v1.messages import router as messages_router
@@ -59,6 +60,7 @@ prefix = settings.api_v1_prefix
 
 app.include_router(agents_router, prefix=prefix)
 app.include_router(discovery_router, prefix=prefix)
+app.include_router(federation_router, prefix=prefix)
 app.include_router(messages_router, prefix=prefix)
 app.include_router(tasks_router, prefix=prefix)
 app.include_router(trust_router, prefix=prefix)
