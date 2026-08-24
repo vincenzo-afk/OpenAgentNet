@@ -44,7 +44,7 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 - [x] Trust score components: endorsement_score, age_factor, dispute_penalty
 - [x] Anomaly detection for reputation manipulation
 - [x] Trust history timeline per agent
-- [x] Dashboard: Trust score breakdown and history charts (score components exposed via `GET /v1/trust/{agent_id}`)
+- [x] Dashboard: Trust score breakdown and history timeline (score components and events exposed via `GET /v1/trust/{agent_id}` and `/events`)
 - [x] `min_trust_score` filter live in discovery (`GET /v1/discover?min_trust_score=`)
 
 **Status**: `v0.2.0` shipped — verified by `check_phase2.py`.

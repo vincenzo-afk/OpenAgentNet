@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import SendTaskForm from "@/components/SendTaskForm";
-import { fetchAgentDetail, fetchMessages, fetchTrust } from "@/lib/api";
+import { fetchAgentDetail, fetchMessages, fetchTrust, fetchTrustEvents } from "@/lib/api";
 
 export default async function AgentDetailPage({ params }: { params: { id: string } }) {
   const agent = await fetchAgentDetail(params.id, null);
   if (!agent) notFound();
 
-  const [trust, messages] = await Promise.all([
+  const [trust, messages, trustEvents] = await Promise.all([
     fetchTrust(params.id, null),
     fetchMessages(params.id, null).catch(() => []),
+    fetchTrustEvents(params.id, null).catch(() => []),
   ]);
 
   return (
@@ -61,10 +62,10 @@ export default async function AgentDetailPage({ params }: { params: { id: string
               </p>
               <h3>Components</h3>
               <p className="note">
-                completion {trust.components.task_completion_rate.toFixed(2)} · latency{" "}
-                {trust.components.latency_adherence.toFixed(2)} · disputes{" "}
-                {trust.components.dispute_outcome.toFixed(2)} · age{" "}
-                {trust.components.age_factor.toFixed(2)}
+                completion {(trust.components.task_completion_rate ?? 0).toFixed(2)} · latency{" "}
+                {(trust.components.latency_adherence ?? 0).toFixed(2)} · disputes{" "}
+                {(trust.components.dispute_health ?? trust.components.dispute_penalty ?? trust.components.dispute_outcome ?? 0).toFixed(2)} · age{" "}
+                {(trust.components.age_factor ?? 0).toFixed(2)}
               </p>
             </div>
           ) : (
@@ -72,6 +73,25 @@ export default async function AgentDetailPage({ params }: { params: { id: string
           )}
         </section>
       </div>
+
+      <section className="card">
+        <h2>Trust History</h2>
+        {trustEvents.length === 0 ? (
+          <p className="note">No trust events recorded yet.</p>
+        ) : (
+          <div style={{ display: "grid", gap: "0.5rem" }}>
+            {trustEvents.map((event) => (
+              <div key={event.event_id || `${event.event_type}-${event.timestamp}`} style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
+                <strong>{event.event_type}</strong>{" "}
+                <span className="note">{event.timestamp ? new Date(event.timestamp).toLocaleString() : ""}</span>
+                <div className="note">
+                  Delta: {event.score_delta == null ? "—" : event.score_delta.toFixed(2)} · New score: {event.new_score == null ? "—" : event.new_score.toFixed(2)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="card">
         <h2>Send a Task</h2>

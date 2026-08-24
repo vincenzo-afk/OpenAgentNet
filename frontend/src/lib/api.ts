@@ -31,12 +31,7 @@ export interface Message {
 export interface TrustScore {
   agent_id: string;
   score: number;
-  components: {
-    task_completion_rate: number;
-    latency_adherence: number;
-    dispute_outcome: number;
-    age_factor: number;
-  };
+  components: Record<string, number>;
   total_tasks: number;
   successful_tasks: number;
   dispute_count: number;
@@ -90,6 +85,25 @@ export async function fetchTrust(agentId: string, token: string | null): Promise
   });
   if (!resp.ok) return null;
   return (await resp.json()) as TrustScore;
+}
+
+export interface TrustEvent {
+  event_id?: string | null;
+  event_type: string;
+  score_delta?: number | null;
+  new_score?: number | null;
+  reference_id?: string | null;
+  timestamp: string;
+}
+
+export async function fetchTrustEvents(agentId: string, token: string | null): Promise<TrustEvent[]> {
+  const resp = await fetch(`${BASE_URL}/trust/${agentId}/events?limit=20`, {
+    headers: authHeaders(token),
+    next: { revalidate: 10 },
+  });
+  if (!resp.ok) return [];
+  const data = (await resp.json()) as { events?: TrustEvent[] };
+  return data.events || [];
 }
 
 export async function fetchMessages(agentId: string, token: string | null): Promise<Message[]> {
