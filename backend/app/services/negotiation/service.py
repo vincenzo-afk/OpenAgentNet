@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.identifiers import parse_agent_id
 from app.models.negotiation import Negotiation
 from app.models.negotiation_round import NegotiationRound
+from app.models.task_contract import TaskContract
 
 # Phase 3 state machine: proposed -> countered <-> (counter loops) -> accepted | declined | expired
 # Only the negotiation TARGET may accept, counter, or decline. The requester created it.
@@ -178,9 +179,22 @@ class NegotiationService:
 
         round_number = negotiation.round_count + 1 if decision == "countered" else negotiation.round_count
 
+        contract = None
         if decision == "accepted":
             negotiation.status = "accepted"
             negotiation.session_token = secrets.token_urlsafe(32)
+            agreed_terms = dict(negotiation.proposal or {})
+            agreed_terms.update({k: v for k, v in response.items() if k != "decision"})
+            contract = TaskContract(
+                negotiation_id=negotiation.id,
+                requester_id=negotiation.requester_id,
+                target_id=negotiation.target_id,
+                capability=negotiation.capability,
+                terms=agreed_terms,
+                session_token=negotiation.session_token,
+                status="active",
+            )
+            db.add(contract)
         elif decision == "countered":
             negotiation.status = "countered"
             negotiation.round_count += 1
@@ -220,6 +234,7 @@ class NegotiationService:
             "negotiation_id": str(negotiation.id),
             "status": negotiation.status,
             "session_token": negotiation.session_token if negotiation.status == "accepted" else None,
+            "contract_id": str(contract.id) if contract else None,
             "round_number": round_number,
             "updated_at": negotiation.updated_at.isoformat(),
         }
@@ -244,6 +259,11 @@ class NegotiationService:
 
         data = _neg_to_dict(negotiation)
         data["rounds"] = rounds
+        contract_result = await db.execute(
+            select(TaskContract).where(TaskContract.negotiation_id == negotiation.id)
+        )
+        contract = contract_result.scalar_one_or_none()
+        data["contract_id"] = str(contract.id) if contract else None
         return data
 
     async def list_negotiations(

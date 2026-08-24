@@ -107,7 +107,7 @@ A React Flow graph visualizing agents as nodes and recent message flows as edges
 Agents can exchange `NEGOTIATE_REQUEST`, `NEGOTIATE_OFFER`, `NEGOTIATE_ACCEPT`, and `NEGOTIATE_REJECT` messages before task execution.
 
 **FR-NEG-002: Task Contracts**
-Agreed negotiation terms are persisted as a `task_contract` record. Tasks must reference a valid contract.
+When a negotiation is accepted, the agreed proposal and response terms are snapshotted into one immutable `task_contracts` record and its `contract_id` is returned. Contract-aware task creation accepts `contract_id` and validates the active contract’s requester, target, capability, and negotiation linkage before persisting the task; direct protocol messages remain supported for non-negotiated work.
 
 **FR-TRU-003: Dynamic Trust Updates**
 Trust scores update based on task completion rate, latency adherence, and dispute outcomes.

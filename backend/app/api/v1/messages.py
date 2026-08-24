@@ -189,6 +189,7 @@ async def create_task(
         "payload": body.payload,
         "constraints": body.constraints,
         "ttl_seconds": body.ttl_seconds,
+        "contract_id": body.contract_id,
     }
     try:
         result = await messaging_service.send_message(db, envelope, agent_id)
@@ -196,6 +197,7 @@ async def create_task(
             task_id=result["message_id"],
             status="pending",
             created_at=datetime.now(UTC),
+            contract_id=body.contract_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

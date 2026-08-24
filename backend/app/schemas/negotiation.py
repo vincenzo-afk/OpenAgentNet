@@ -32,6 +32,7 @@ class NegotiationResponseSchema(BaseModel):
     negotiation_id: str
     status: str
     session_token: str | None = None
+    contract_id: str | None = None
     round_number: int
     updated_at: datetime
 
@@ -55,6 +56,7 @@ class NegotiationDetail(BaseModel):
     proposal: dict[str, Any]
     response: dict[str, Any] | None = None
     session_token: str | None = None
+    contract_id: str | None = None
     round_count: int
     rounds: list[NegotiationRoundDetail] = []
     expires_at: datetime

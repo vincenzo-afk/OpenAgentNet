@@ -8,6 +8,7 @@ from app.models.memory import MemoryObject, MemoryPermission
 from app.models.negotiation import Negotiation
 from app.models.negotiation_round import NegotiationRound
 from app.models.task import Task
+from app.models.task_contract import TaskContract
 from app.models.task_stream import TaskStreamChunk
 from app.models.task_proof import TaskPrivacyProof
 from app.models.team import Team, TeamMember
@@ -20,6 +21,7 @@ __all__ = [
     "ApiKey",
     "AgentVersion",
     "Task",
+    "TaskContract",
     "TaskStreamChunk",
     "TaskPrivacyProof",
     "Team",

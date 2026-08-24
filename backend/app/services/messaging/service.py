@@ -19,6 +19,7 @@ from app.core.nats_client import publish_agent_announce, publish_to_agent, publi
 from app.core.schema_validation import PayloadValidationError, validate_payload
 from app.models.agent import Agent
 from app.models.task import Task
+from app.models.task_contract import TaskContract
 from app.models.team import Team, TeamMember
 
 
@@ -196,6 +197,25 @@ class MessagingService:
                     )
                     raise
 
+        contract = None
+        if envelope.get("contract_id"):
+            try:
+                contract_id = uuid.UUID(str(envelope["contract_id"]))
+            except (ValueError, AttributeError) as exc:
+                raise ValueError("Invalid contract_id") from exc
+            contract_result = await db.execute(
+                select(TaskContract).where(TaskContract.id == contract_id)
+            )
+            contract = contract_result.scalar_one_or_none()
+            if not contract or contract.status != "active":
+                raise ValueError("Task contract not found or inactive")
+            if (
+                contract.requester_id != sender.id
+                or contract.target_id != recipient.id
+                or contract.capability != capability
+            ):
+                raise ValueError("Task does not match the accepted contract")
+
         # Create task record
         task = Task(
             id=message_id,
@@ -207,6 +227,8 @@ class MessagingService:
             status="pending",
             ttl_seconds=ttl_seconds,
             envelope_hash=envelope_hash,
+            negotiation_id=contract.negotiation_id if contract else None,
+            contract_id=contract.id if contract else None,
         )
         db.add(task)
         await db.flush()
@@ -473,6 +495,7 @@ class MessagingService:
             "message_id": str(task.id),
             "from_agent_id": str(task.from_agent_id),
             "to_agent_id": str(task.to_agent_id),
+            "contract_id": str(task.contract_id) if task.contract_id else None,
             "capability": capability,
             "type": "task.request",
             "payload": task.payload,

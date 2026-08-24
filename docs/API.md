@@ -239,7 +239,7 @@ Returns messages for the authenticated agent (sent or received).
 POST /v1/tasks
 ```
 
-Requires scope `tasks:initiate`. Creates a task contract after negotiation is complete.
+Requires scope `tasks:initiate`. For negotiated work, `contract_id` must identify an active contract created when the negotiation was accepted; the gateway validates requester, executor, and capability before creating the task. Direct task messages may omit it for non-negotiated work.
 
 **Request:**
 
@@ -261,7 +261,8 @@ Requires scope `tasks:initiate`. Creates a task contract after negotiation is co
 {
   "task_id": "task_01J8X...",
   "status": "pending",
-  "created_at": "2025-06-01T12:05:00Z"
+  "created_at": "2025-06-01T12:05:00Z",
+  "contract_id": "ctr_01J8X..."
 }
 ```
 

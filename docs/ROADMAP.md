@@ -63,11 +63,11 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 ### Deliverables
 
 - [x] Team registration and owner-managed membership (`teams` and `team_members`, migration `018_teams.py`, authenticated `/v1/teams` API)
-- [ ] Team broadcasting to all active members (next increment)
+- [x] Team broadcasting to all active members via `team:<team_id>` message destinations and NATS/HTTP fan-out
 - [x] Negotiation protocol implementation
 - [x] Proposal/counter/accept/decline state machine
 - [x] Session tokens for accepted negotiations
-- [x] Negotiation records attached to task records
+- [x] Accepted negotiation terms persisted as immutable task contracts (`task_contracts`, migration `019_task_contracts.py`) and validated contract-backed task creation
 - [x] Dashboard: Negotiation activity view (`/negotiations`)
 
 **Status**: `v0.3.0` shipped — verified by `check_phase3.py`.

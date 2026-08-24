@@ -92,6 +92,7 @@ CREATE TABLE tasks (
     error_code          TEXT,
     error_message       TEXT,
     negotiation_id      UUID,
+    contract_id         UUID REFERENCES task_contracts(id) ON DELETE SET NULL,
     execution_ms        INTEGER,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -104,6 +105,28 @@ CREATE INDEX idx_tasks_to_agent ON tasks(to_agent_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_workflow ON tasks(workflow_id) WHERE workflow_id IS NOT NULL;
 CREATE INDEX idx_tasks_created_at ON tasks(created_at DESC);
+```
+
+---
+
+### `task_contracts`
+
+Accepted negotiation terms are snapshotted as an immutable contract. Tasks may reference the contract; the gateway validates that requester, executor, capability, and active status match before creating a contract-backed task.
+
+```sql
+CREATE TABLE task_contracts (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    negotiation_id UUID NOT NULL UNIQUE REFERENCES negotiations(id) ON DELETE CASCADE,
+    requester_id   UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    target_id      UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    capability     TEXT NOT NULL,
+    terms          JSONB NOT NULL DEFAULT '{}',
+    session_token  TEXT NOT NULL,
+    status         TEXT NOT NULL DEFAULT 'active'
+                   CHECK (status IN ('active', 'consumed', 'cancelled')),
+    accepted_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 ```
 
 ---

@@ -70,6 +70,7 @@ class MessageResponse(BaseModel):
     conversation_id: str | None = None
     from_agent_id: str
     to_agent_id: str
+    contract_id: str | None = None
     type: str
     payload: dict[str, Any]
     status: str
@@ -93,12 +94,14 @@ class TaskCreateRequest(BaseModel):
     payload: dict[str, Any]
     constraints: dict[str, Any] = {}
     ttl_seconds: int = Field(default=60, ge=1, le=3600)
+    contract_id: str | None = None
 
 
 class TaskCreateResponse(BaseModel):
     task_id: str
     status: str = "pending"
     created_at: datetime
+    contract_id: str | None = None
 
 
 class TaskStreamChunkRequest(BaseModel):
