@@ -16,6 +16,7 @@ from app.core.crypto import (
     public_key_to_bytes,
     verify_signature,
 )
+from app.core.config import get_settings
 from app.core.identifiers import build_did, derive_agent_id_from_bytes, parse_agent_id
 from app.core.security import create_access_token
 from app.models.agent import Agent, ApiKey
@@ -69,6 +70,9 @@ class RegistryService:
             owner_id=uuid.UUID(manifest.owner.get("id", str(uuid.uuid4()))),
             owner_type=manifest.owner.get("type", "user"),
             status="active",
+            region=manifest.region or get_settings().region,
+            is_federated=False,
+            origin_registry_id=get_settings().registry_id,
             endpoint=manifest.endpoint,
             health_endpoint=manifest.health_endpoint,
             public_key=manifest.public_key,
@@ -328,6 +332,9 @@ class RegistryService:
             "version": agent.version,
             "description": agent.description,
             "status": agent.status,
+            "region": agent.region,
+            "is_federated": agent.is_federated,
+            "origin_registry_id": agent.origin_registry_id,
             "endpoint": agent.endpoint,
             "capabilities": agent.capabilities,
             "tags": agent.tags,

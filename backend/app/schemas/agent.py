@@ -31,6 +31,7 @@ class AgentManifest(BaseModel):
     permissions_offered: list[str] = []
     tags: list[str] = []
     metadata: dict[str, Any] = {}
+    region: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$")
 
 
 class RegistrationProof(BaseModel):
@@ -59,6 +60,9 @@ class AgentResponse(BaseModel):
     version: str
     description: str | None = None
     status: str
+    region: str = "local"
+    is_federated: bool = False
+    origin_registry_id: str | None = None
     endpoint: str
     capabilities: list[CapabilitySchema]
     tags: list[str]

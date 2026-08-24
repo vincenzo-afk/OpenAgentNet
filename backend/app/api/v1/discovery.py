@@ -22,10 +22,13 @@ async def search_agents(
     db: Annotated[AsyncSession, Depends(get_db_session)],
     payload: Annotated[dict, Depends(require_scope("discovery:read"))],
 ):
+    filters = dict(body.filters)
+    if body.region:
+        filters["region"] = body.region
     result = await discovery_service.search(
         db,
         capabilities=body.capabilities,
-        filters=body.filters,
+        filters=filters,
         sort=body.sort,
         limit=body.limit,
         offset=body.offset,
@@ -41,6 +44,7 @@ async def discover_agents(
     tags: str | None = None,
     min_trust_score: float | None = None,
     status: str | None = None,
+    region: str | None = None,
     limit: int = 10,
     sort: str = "trust_score:desc",
 ):
@@ -51,6 +55,8 @@ async def discover_agents(
         filters["tags"] = tags.split(",")
     if status is not None:
         filters["status"] = status
+    if region is not None:
+        filters["region"] = region
 
     result = await discovery_service.search(
         db,

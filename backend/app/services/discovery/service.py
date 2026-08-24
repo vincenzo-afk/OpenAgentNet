@@ -31,6 +31,12 @@ class DiscoveryService:
         query = query.where(Agent.status == status)
         count_query = count_query.where(Agent.status == status)
 
+        # Region filter supports local, remote, and federated registry views.
+        region = filters.get("region")
+        if region:
+            query = query.where(Agent.region == region)
+            count_query = count_query.where(Agent.region == region)
+
         # Capability filter using JSONB containment
         if capabilities:
             import json as _json
@@ -101,6 +107,9 @@ class DiscoveryService:
                     "trust_score": float(trust.trust_score) if trust else 0.5,
                     "metadata": agent.metadata_ or {},
                     "status": agent.status,
+                    "region": agent.region,
+                    "is_federated": agent.is_federated,
+                    "origin_registry_id": agent.origin_registry_id,
                 }
             )
 

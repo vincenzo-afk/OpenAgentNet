@@ -21,6 +21,12 @@ class Settings(BaseSettings):
 
     # NATS
     nats_url: str = "nats://localhost:4222"
+    nats_cluster_name: str = "openagentnet"
+
+    # Federation
+    region: str = "local"
+    registry_id: str = "local-registry"
+    federation_sync_interval_seconds: int = 30
 
     # JWT
     jwt_private_key_path: str = str(Path(__file__).resolve().parent.parent.parent / "keys" / "jwt_private.pem")

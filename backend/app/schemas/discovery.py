@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class DiscoverySearchRequest(BaseModel):
     capabilities: list[str] | None = None
     filters: dict[str, Any] = {}
+    region: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$")
     sort: str = "trust_score:desc"
     limit: int = Field(default=10, ge=1, le=50)
     offset: int = Field(default=0, ge=0)
@@ -23,6 +24,9 @@ class DiscoveryAgentResult(BaseModel):
     trust_score: float | None = None
     metadata: dict[str, Any] = {}
     status: str
+    region: str = "local"
+    is_federated: bool = False
+    origin_registry_id: str | None = None
 
 
 class DiscoverySearchResponse(BaseModel):

@@ -34,6 +34,9 @@ class Agent(Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     owner_type: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
+    region: Mapped[str] = mapped_column(Text, nullable=False, default="local", server_default="local")
+    is_federated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="FALSE")
+    origin_registry_id: Mapped[str | None] = mapped_column(Text)
     endpoint: Mapped[str] = mapped_column(Text, nullable=False)
     health_endpoint: Mapped[str | None] = mapped_column(Text)
     public_key: Mapped[str] = mapped_column(Text, nullable=False)
@@ -68,6 +71,8 @@ class Agent(Base):
         Index("idx_agents_tags", "tags", postgresql_using="gin"),
         Index("idx_agents_capabilities", "capabilities", postgresql_using="gin"),
         Index("idx_agents_owner", "owner_id"),
+        Index("idx_agents_region_status", "region", "status"),
+        Index("idx_agents_federated_origin", "origin_registry_id"),
     )
 
 
