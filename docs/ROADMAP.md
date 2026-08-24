@@ -174,6 +174,8 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 
 **Status**: `v1.1.0` implemented — all previously unscheduled backlog items have a documented implementation and focused tests.
 
+The hardening toolkit now includes `backend/scripts/load_test.py`, an asynchronous HTTP harness with configurable request count, concurrency, timeout, authentication, status aggregation, and p50/p95/p99 latency reporting. Operators can use it to validate the documented 500-concurrent-agent and 10,000-messages-per-minute targets in an environment with the required services; this repository does not claim those production targets without an executed deployment benchmark.
+
 ---
 
 ## Backlog (Unscheduled)
