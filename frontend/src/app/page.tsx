@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { fetchAgents, fetchListings } from "@/lib/api";
+import NetworkGraph from "@/components/NetworkGraph";
 
 export default async function DashboardPage() {
   const [agents, listings] = await Promise.all([
@@ -33,6 +34,8 @@ export default async function DashboardPage() {
           listing{listings.length === 1 ? "" : "s"}
         </p>
       </section>
+
+      <NetworkGraph agents={agents} />
 
       <section>
         <h2>Registered Agents</h2>
