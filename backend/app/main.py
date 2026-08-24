@@ -14,6 +14,7 @@ from app.api.v1.memory import router as memory_router
 from app.api.v1.messages import router as messages_router
 from app.api.v1.messages import task_router as tasks_router
 from app.api.v1.negotiations import router as negotiations_router
+from app.api.v1.routing import router as routing_router
 from app.api.v1.trust import router as trust_router
 from app.api.v1.workflows import router as workflows_router
 from app.core.config import get_settings
@@ -65,6 +66,7 @@ app.include_router(messages_router, prefix=prefix)
 app.include_router(tasks_router, prefix=prefix)
 app.include_router(trust_router, prefix=prefix)
 app.include_router(negotiations_router, prefix=prefix)
+app.include_router(routing_router, prefix=prefix)
 app.include_router(workflows_router, prefix=prefix)
 app.include_router(memory_router, prefix=prefix)
 app.include_router(marketplace_router, prefix=prefix)

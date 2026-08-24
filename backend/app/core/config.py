@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     registry_id: str = "local-registry"
     federation_sync_interval_seconds: int = 30
 
+    # Optional task routing model. When unset, routing uses trust and capability fit.
+    routing_llm_base_url: str | None = None
+    routing_llm_api_key: str | None = None
+    routing_llm_model: str = "openagent-router"
+    routing_llm_timeout_seconds: float = 5.0
+
     # JWT
     jwt_private_key_path: str = str(Path(__file__).resolve().parent.parent.parent / "keys" / "jwt_private.pem")
     jwt_public_key_path: str = str(Path(__file__).resolve().parent.parent.parent / "keys" / "jwt_public.pem")
