@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from sqlalchemy.dialects.postgresql import dialect
 
 from app.services.discovery import DiscoveryService
@@ -59,6 +60,28 @@ async def test_discovery_supports_latency_filter_and_sort() -> None:
         if isinstance(value, (str, int, float))
     }
     assert {"latency_p95_ms", "latency_estimate_ms", "language", "domain"}.issubset(bind_values)
+
+
+@pytest.mark.asyncio
+async def test_empty_capability_index_short_circuits_authoritative_query() -> None:
+    async def empty_candidates(*_args, **_kwargs):
+        return []
+
+    import app.services.discovery.service as discovery_module
+
+    original = discovery_module.candidate_ids
+    discovery_module.candidate_ids = empty_candidates
+    try:
+        db = _DB()
+        result = await DiscoveryService().search(db, capabilities=["missing-capability"])
+    finally:
+        discovery_module.candidate_ids = original
+
+    assert result["total"] == 0
+    assert result["agents"] == []
+    assert len(db.statements) == 2
+    sql = "\n".join(str(statement.compile(dialect=dialect())) for statement in db.statements)
+    assert "agents.id IN" in sql
 
 
 async def test_discovery_supports_cost_sort() -> None:

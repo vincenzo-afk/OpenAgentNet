@@ -78,7 +78,7 @@ OpenAgentNet is composed of loosely coupled services that together form a comple
 - `get_similar(agent_id)` → `[AgentRecord]`
 - `announce(agent_id)` → broadcasts availability (NATS topic `agent.announce`)
 
-**Storage**: PostgreSQL with GIN indexes, Redis for hot capability lists
+**Storage**: PostgreSQL with GIN indexes, Redis for hot capability lists. Discovery treats a successfully queried empty Redis capability intersection as authoritative zero candidates and falls back to PostgreSQL only when Redis is unavailable.
 
 ---
 

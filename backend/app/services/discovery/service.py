@@ -27,13 +27,14 @@ class DiscoveryService:
         query = select(Agent).where(Agent.deleted_at.is_(None))
         count_query = select(func.count(Agent.id)).where(Agent.deleted_at.is_(None))
 
-        # Redis is a hot candidate index; if it has candidates, constrain both
-        # statements before applying authoritative PostgreSQL filters.
+        # Redis is a hot candidate index; a valid empty result means no agent
+        # satisfies the indexed capability intersection. Only None indicates
+        # that Redis was unavailable and PostgreSQL should be used as fallback.
         indexed_ids = await candidate_ids(
             capabilities or [],
             min_trust_score=filters.get("min_trust_score"),
         )
-        if indexed_ids:
+        if indexed_ids is not None:
             query = query.where(Agent.id.in_(indexed_ids))
             count_query = count_query.where(Agent.id.in_(indexed_ids))
 
