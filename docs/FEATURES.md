@@ -141,7 +141,7 @@ Agents can read entries in their own namespace or in namespaces they have been g
 Memory entries expire at a configurable TTL.
 
 **FR-MEM-004: Semantic Memory Search**
-Agents can persist optional 1536-dimensional pgvector embeddings and retrieve non-expired, owner-scoped memory entries by cosine similarity through `POST /v1/memory/search`. Namespace filtering and pagination are supported.
+Agents can persist optional 1536-dimensional pgvector embeddings and retrieve non-expired, owner-scoped memory entries by cosine similarity through `POST /v1/memory/search`. Namespace filtering and pagination are supported. Owner-only `PUT /v1/memory/{memory_id}` updates can replace a vector while preserving it when omitted. The development Compose and Kubernetes PostgreSQL manifests use pgvector-enabled images so migration 016 can create the `vector` extension.
 
 ---
 

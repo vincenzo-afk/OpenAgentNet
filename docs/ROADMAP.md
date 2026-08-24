@@ -108,7 +108,7 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 - [x] Streaming memory updates via NATS (`oan.events.memory.created|updated|deleted`)
 - [x] Memory namespace isolation (writes restricted to the caller's own memories)
 - [x] Dashboard: Memory browser for operators (`/memory`)
-- [x] Semantic memory search with optional 1536-dimensional pgvector embeddings, cosine ranking, namespace filtering, and pagination (embedding generation remains caller-configured)
+- [x] Semantic memory search with optional 1536-dimensional pgvector embeddings, cosine ranking, namespace filtering, and pagination (embedding generation remains caller-configured); owner-only PUT updates can replace vectors, and Compose/Kubernetes PostgreSQL images include pgvector for migration readiness
 
 **Status**: `v0.5.0` shipped — verified by `check_phase5.py`.
 

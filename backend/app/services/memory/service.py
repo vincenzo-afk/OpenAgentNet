@@ -254,11 +254,17 @@ class MemoryService:
         data: dict[str, Any] | None = None,
         data_type: str | None = None,
         permissions: list[dict[str, Any]] | None = None,
+        embedding: list[float] | None = None,
     ) -> dict[str, Any]:
         """Update an existing memory object (owner only).
 
-        ``permissions`` replaces the current grant list when provided.
+        ``permissions`` replaces the current grant list when provided. If an
+        embedding is supplied it replaces the stored 1536-dimensional vector;
+        when omitted, the existing vector is preserved.
         """
+        if embedding is not None and len(embedding) != 1536:
+            raise ValueError("embedding must contain exactly 1536 dimensions")
+
         result = await db.execute(
             select(MemoryObject).where(
                 MemoryObject.id == uuid.UUID(memory_id),
@@ -273,6 +279,8 @@ class MemoryService:
             memory.data = data
         if data_type is not None:
             memory.data_type = data_type
+        if embedding is not None:
+            memory.embedding = embedding
         memory.version += 1
         memory.updated_at = utcnow()
 

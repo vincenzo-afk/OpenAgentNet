@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:15-alpine
+    # pgvector is required by Alembic migration 016 for semantic memory search.
+    image: pgvector/pgvector:pg15
     environment:
       POSTGRES_USER: openagentnet
       POSTGRES_PASSWORD: openagentnet

@@ -57,7 +57,8 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16-alpine
+          # pgvector is required by Alembic migration 016 for semantic memory search.
+          image: pgvector/pgvector:pg16
           ports:
             - name: postgres
               containerPort: 5432

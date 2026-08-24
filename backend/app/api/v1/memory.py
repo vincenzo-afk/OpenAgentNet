@@ -102,6 +102,7 @@ async def update_memory(
             data=body.data,
             data_type=body.data_type,
             permissions=[p.model_dump() for p in body.permissions] if body.permissions else None,
+            embedding=body.embedding,
         )
         return MemoryObjectResponse(**result)
     except ValueError as e:
