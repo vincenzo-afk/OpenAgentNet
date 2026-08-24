@@ -31,10 +31,18 @@ services:
     image: nats:2.10-alpine
     ports:
       - "4222:4222"
+      - "6222:6222"
+      - "7422:7422"
       - "8222:8222"
-    command: ["--jetstream", "--store_dir", "/data"]
+    environment:
+      NATS_SERVER_NAME: oan-dev-nats
+      NATS_CLUSTER_NAME: openagentnet-dev
+      NATS_CLUSTER_ROUTES: ""
+      NATS_LEAFNODES: ""
+    command: ["-c", "/etc/nats/nats-server.conf"]
     volumes:
       - natsdata:/data
+      - ../nats/nats-server.conf:/etc/nats/nats-server.conf:ro
 
   backend:
     build:
@@ -46,6 +54,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://openagentnet:openagentnet@postgres:5432/openagentnet
       REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222
+      NATS_CLUSTER_NAME: openagentnet-dev
+      REGION: local
+      REGISTRY_ID: local-registry
     depends_on:
       postgres:
         condition: service_healthy

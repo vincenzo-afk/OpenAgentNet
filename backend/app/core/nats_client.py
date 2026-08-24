@@ -59,6 +59,7 @@ async def connect_nats() -> None:
     try:
         await _nats.connect(
             settings.nats_url,
+            name=f"{settings.registry_id}@{settings.region}",
             connect_timeout=5,
             max_reconnect_attempts=3,
             error_cb=error_cb,
