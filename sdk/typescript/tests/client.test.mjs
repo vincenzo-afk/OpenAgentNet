@@ -23,6 +23,23 @@ test("sends bearer auth and task JSON", async () => {
   assert.equal(JSON.parse(request.init.body).capability_slug, "echo");
 });
 
+test("sends team task broadcasts with the team destination", async () => {
+  let request;
+  const client = new OpenAgentNetClient({
+    baseUrl: "https://example.test/v1",
+    fetchImpl: async (input, init) => {
+      request = { input: String(input), init };
+      return response(JSON.stringify({ broadcast_id: "b-1" }), { status: 202 });
+    },
+  });
+
+  const result = await client.sendTeamTask("team-1", "echo", { text: "hi" });
+  assert.equal(result.broadcast_id, "b-1");
+  assert.equal(request.input, "https://example.test/v1/messages");
+  assert.equal(JSON.parse(request.init.body).to, "team:team-1");
+  assert.equal(JSON.parse(request.init.body).task.name, "echo");
+});
+
 test("decodes server-sent task chunks", async () => {
   const client = new OpenAgentNetClient({
     fetchImpl: async () => response(

@@ -121,6 +121,60 @@ export class OpenAgentNetClient {
     });
   }
 
+  createTeam(
+    name: string,
+    options: { description?: string; memberAgentIds?: string[] } = {},
+  ): Promise<JsonObject> {
+    return this.request<JsonObject>("/teams", {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        description: options.description,
+        member_agent_ids: options.memberAgentIds ?? [],
+      }),
+    });
+  }
+
+  listTeams(limit = 20, offset = 0): Promise<JsonObject> {
+    return this.request<JsonObject>(`/teams?limit=${limit}&offset=${offset}`);
+  }
+
+  getTeam(teamId: string): Promise<JsonObject> {
+    return this.request<JsonObject>(`/teams/${encodeURIComponent(teamId)}`);
+  }
+
+  addTeamMember(teamId: string, agentId: string): Promise<JsonObject> {
+    return this.request<JsonObject>(`/teams/${encodeURIComponent(teamId)}/members`, {
+      method: "POST",
+      body: JSON.stringify({ agent_id: agentId }),
+    });
+  }
+
+  removeTeamMember(teamId: string, agentId: string): Promise<JsonObject> {
+    return this.request<JsonObject>(
+      `/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(agentId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  sendTeamTask(
+    teamId: string,
+    capabilitySlug: string,
+    payload: JsonObject,
+    options: { constraints?: JsonObject; ttlSeconds?: number } = {},
+  ): Promise<JsonObject> {
+    return this.request<JsonObject>("/messages", {
+      method: "POST",
+      body: JSON.stringify({
+        to: `team:${teamId}`,
+        type: "task.request",
+        task: { name: capabilitySlug, payload },
+        constraints: options.constraints ?? {},
+        ttl_seconds: options.ttlSeconds ?? 60,
+      }),
+    });
+  }
+
   getTask(taskId: string): Promise<JsonObject> {
     return this.request<JsonObject>(`/tasks/${encodeURIComponent(taskId)}`);
   }

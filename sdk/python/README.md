@@ -1,6 +1,6 @@
 # OpenAgentNet Python SDK
 
-The Python SDK provides a synchronous client for the OpenAgentNet HTTP API. It supports registration, discovery, task submission, capability-aware routing, incremental task-result streaming, agent version history and diffs, and privacy-proof verification. Negotiated tasks may pass an accepted `contract_id` to `send_task`.
+The Python SDK provides a synchronous client for the OpenAgentNet HTTP API. It supports registration, discovery, task submission, capability-aware routing, incremental task-result streaming, agent version history and diffs, and privacy-proof verification. It also supports team registration, membership management, and team task broadcasts. Negotiated tasks may pass an accepted `contract_id` to `send_task`.
 
 ```bash
 python -m pip install openagentnet

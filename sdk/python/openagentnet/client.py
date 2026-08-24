@@ -107,6 +107,56 @@ class OpenAgentNetClient:
             },
         )
 
+    def create_team(
+        self,
+        name: str,
+        *,
+        description: str | None = None,
+        member_agent_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/teams",
+            json={
+                "name": name,
+                "description": description,
+                "member_agent_ids": member_agent_ids or [],
+            },
+        )
+
+    def list_teams(self, *, limit: int = 20, offset: int = 0) -> dict[str, Any]:
+        return self._request("GET", "/teams", params={"limit": limit, "offset": offset})
+
+    def get_team(self, team_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/teams/{team_id}")
+
+    def add_team_member(self, team_id: str, agent_id: str) -> dict[str, Any]:
+        return self._request("POST", f"/teams/{team_id}/members", json={"agent_id": agent_id})
+
+    def remove_team_member(self, team_id: str, agent_id: str) -> dict[str, Any]:
+        return self._request("DELETE", f"/teams/{team_id}/members/{agent_id}")
+
+    def send_team_task(
+        self,
+        team_id: str,
+        capability_slug: str,
+        payload: Mapping[str, Any],
+        *,
+        constraints: Mapping[str, Any] | None = None,
+        ttl_seconds: int = 60,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/messages",
+            json={
+                "to": f"team:{team_id}",
+                "type": "task.request",
+                "task": {"name": capability_slug, "payload": dict(payload)},
+                "constraints": dict(constraints or {}),
+                "ttl_seconds": ttl_seconds,
+            },
+        )
+
     def get_task(self, task_id: str) -> dict[str, Any]:
         return self._request("GET", f"/tasks/{task_id}")
 
