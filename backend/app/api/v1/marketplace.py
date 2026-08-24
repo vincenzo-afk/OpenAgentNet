@@ -54,6 +54,9 @@ async def search_listings(
     capability: str | None = None,
     min_trust_score: float | None = None,
     access_tier: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    max_latency_p95_ms: int | None = None,
     limit: int = 20,
     offset: int = 0,
 ):
@@ -62,6 +65,9 @@ async def search_listings(
         capability=capability,
         min_trust_score=min_trust_score,
         access_tier=access_tier,
+        min_price=min_price,
+        max_price=max_price,
+        max_latency_p95_ms=max_latency_p95_ms,
         limit=limit,
         offset=offset,
     )

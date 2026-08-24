@@ -4,11 +4,13 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import Numeric, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.identifiers import parse_agent_id
+from app.models.agent import Agent
 from app.models.marketplace import MarketplaceListing, MarketplaceUsage
+from app.models.trust import TrustRecord
 from app.core.nats_client import publish_event
 
 VALID_ACCESS_TIERS = ("free", "paid", "invite_only")
@@ -63,6 +65,9 @@ class MarketplaceService:
         capability: str | None = None,
         min_trust_score: float | None = None,
         access_tier: str | None = None,
+        min_price: float | None = None,
+        max_price: float | None = None,
+        max_latency_p95_ms: int | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> dict[str, Any]:
@@ -71,27 +76,45 @@ class MarketplaceService:
             MarketplaceListing.is_public.is_(True)
         )
 
-        if access_tier:
-            query = query.where(MarketplaceListing.access_tier == access_tier)
-            count_query = count_query.where(MarketplaceListing.access_tier == access_tier)
+        def apply_filters(statement):
+            if access_tier:
+                statement = statement.where(MarketplaceListing.access_tier == access_tier)
 
-        # Filter by capability if provided (search in agent's capabilities via join)
-        if capability:
-            import json as _json
+            if capability or min_trust_score is not None:
+                statement = statement.join(Agent, MarketplaceListing.agent_id == Agent.id)
 
-            import sqlalchemy as sa
+            if capability:
+                import sqlalchemy as sa
+                from sqlalchemy.dialects.postgresql import JSONB
 
-            from app.models.agent import Agent
+                safe_cap = [{"name": capability}]
+                statement = statement.where(Agent.capabilities.op("@>")(sa.cast(safe_cap, JSONB)))
 
-            safe_cap = [{"name": capability}]
-            from sqlalchemy.dialects.postgresql import JSONB
-            query = query.join(Agent, MarketplaceListing.agent_id == Agent.id).where(
-                Agent.capabilities.op("@>")(sa.cast(safe_cap, JSONB))
-            )
-            count_query = count_query.join(Agent, MarketplaceListing.agent_id == Agent.id).where(
-                Agent.capabilities.op("@>")(sa.cast(safe_cap, JSONB))
-            )
+            if min_trust_score is not None:
+                statement = statement.join(TrustRecord, MarketplaceListing.agent_id == TrustRecord.agent_id)
+                statement = statement.where(TrustRecord.trust_score >= min_trust_score)
 
+            if min_price is not None or max_price is not None:
+                price = func.coalesce(
+                    cast(MarketplaceListing.pricing["amount"].astext, Numeric),
+                    cast(MarketplaceListing.pricing["price"].astext, Numeric),
+                )
+                if min_price is not None:
+                    statement = statement.where(price >= min_price)
+                if max_price is not None:
+                    statement = statement.where(price <= max_price)
+
+            if max_latency_p95_ms is not None:
+                latency = func.coalesce(
+                    cast(MarketplaceListing.sla["p95_latency_ms"].astext, Numeric),
+                    cast(MarketplaceListing.sla["latency_p95_ms"].astext, Numeric),
+                )
+                statement = statement.where(latency <= max_latency_p95_ms)
+
+            return statement
+
+        query = apply_filters(query)
+        count_query = apply_filters(count_query)
         total_result = await db.execute(count_query)
         total = total_result.scalar() or 0
 
