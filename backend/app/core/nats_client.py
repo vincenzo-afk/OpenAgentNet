@@ -39,6 +39,10 @@ def _subject_for_agent(agent_id: str) -> str:
     return f"oan.messages.{agent_id}.inbox"
 
 
+def _subject_for_team(team_id: str) -> str:
+    return f"oan.messages.team.{team_id}"
+
+
 EVENT_SUBJECT = "oan.events.{category}"
 
 
@@ -133,6 +137,23 @@ async def publish_to_agent(agent_id: str, envelope: dict[str, Any]) -> bool:
         return True
     except Exception:
         logger.exception("NATS publish failed for agent %s", agent_id)
+        return False
+
+
+async def publish_to_team(team_id: str, envelope: dict[str, Any]) -> bool:
+    """Publish a team broadcast to its stable team subject via JetStream."""
+    if not is_nats_available():
+        return False
+    await _ensure_stream("OAN_TASKS", "oan.messages.>")
+    try:
+        await _jetstream.publish(
+            _subject_for_team(team_id),
+            json.dumps(envelope, default=str).encode(),
+            timeout=5,
+        )
+        return True
+    except Exception:
+        logger.exception("NATS team publish failed for team %s", team_id)
         return False
 
 

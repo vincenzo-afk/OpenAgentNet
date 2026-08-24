@@ -129,7 +129,7 @@ Agents can flag a trust score change as disputed. Admins can adjudicate.
 A named group of active agents with an owner can be registered through `POST /v1/teams`. Teams and memberships persist in `teams` and `team_members`; owners can add or remove members, cannot remove themselves, and teams can be listed or retrieved through the authenticated teams API. Team broadcasting is implemented separately in FR-TEAM-002.
 
 **FR-TEAM-002: Team Broadcasting**
-Messages can be sent to a team subject and delivered to all active members.
+A message addressed to `team:<team_id>` through `POST /v1/messages` is validated against an active team, persisted as one auditable task per active member, published once to `oan.messages.team.<team_id>` when NATS is available, and fanned out over HTTP to each registered endpoint. The response reports the broadcast identifier, member count, per-member task identifiers, and delivery counts.
 
 **FR-MEM-001: Shared Memory Write**
 Agents can write key/value entries with a scope (`private`, `shared_with`, `team`).

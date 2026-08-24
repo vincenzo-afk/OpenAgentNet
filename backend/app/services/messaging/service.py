@@ -15,10 +15,11 @@ from app.core.config import get_settings
 from app.core.crypto import base64_to_public_key, canonical_json_bytes, verify_signature
 from app.core.identifiers import parse_agent_id
 from app.core.anomaly import observe_anomaly
-from app.core.nats_client import publish_agent_announce, publish_to_agent
+from app.core.nats_client import publish_agent_announce, publish_to_agent, publish_to_team
 from app.core.schema_validation import PayloadValidationError, validate_payload
 from app.models.agent import Agent
 from app.models.task import Task
+from app.models.team import Team, TeamMember
 
 
 def utcnow() -> datetime:
@@ -97,6 +98,9 @@ class MessagingService:
     async def send_message(
         self, db: AsyncSession, envelope: dict[str, Any], sender_id: str
     ) -> dict[str, Any]:
+        if str(envelope.get("to", "")).startswith("team:"):
+            return await self.broadcast_to_team(db, envelope, sender_id)
+
         # Check message deduplication (FR-MSG-005).
         # If the client supplies a message_id, reject exact repeats; otherwise
         # de-duplicate on the canonical envelope hash so identical re-sends are
@@ -249,6 +253,130 @@ class MessagingService:
             "message_id": message_id,
             "status": "queued",
             "delivery_mode": delivery_mode,
+        }
+
+    async def broadcast_to_team(
+        self, db: AsyncSession, envelope: dict[str, Any], sender_id: str
+    ) -> dict[str, Any]:
+        team_ref = str(envelope.get("to", ""))
+        if not team_ref.startswith("team:"):
+            raise ValueError("Team destination must use team:<team_id>")
+        try:
+            team_id = uuid.UUID(team_ref[5:])
+        except ValueError as exc:
+            raise ValueError("Invalid team destination") from exc
+        ttl_seconds = envelope.get("ttl_seconds", 60)
+        if ttl_seconds <= 0:
+            raise ValueError("Message TTL has expired")
+
+        sender_uuid = parse_agent_id(sender_id)
+        if not sender_uuid:
+            raise ValueError("Sender not found")
+        sender_result = await db.execute(
+            select(Agent).where(Agent.id == sender_uuid, Agent.deleted_at.is_(None))
+        )
+        sender = sender_result.scalar_one_or_none()
+        if not sender:
+            raise ValueError("Sender not found")
+
+        team_result = await db.execute(
+            select(Team).where(Team.id == team_id, Team.status == "active")
+        )
+        if not team_result.scalar_one_or_none():
+            raise ValueError("Team not found or inactive")
+        members_result = await db.execute(
+            select(Agent)
+            .join(TeamMember, TeamMember.agent_id == Agent.id)
+            .where(
+                TeamMember.team_id == team_id,
+                Agent.status == "active",
+                Agent.deleted_at.is_(None),
+            )
+        )
+        members = members_result.scalars().all()
+        if not members:
+            raise ValueError("Team has no active members")
+
+        signature = envelope.get("signature")
+        if signature:
+            body = {k: v for k, v in envelope.items() if k != "signature"}
+            if not verify_signature(
+                base64_to_public_key(sender.public_key),
+                signature,
+                canonical_json_bytes(body),
+            ):
+                raise ValueError("Invalid message signature")
+
+        task_data = envelope.get("task") or envelope.get("body") or envelope.get("payload") or {}
+        if isinstance(task_data, str):
+            capability = task_data
+            task_data = {"name": task_data, "payload": envelope.get("payload", {})}
+        elif isinstance(task_data, dict):
+            capability = task_data.get("name", task_data.get("slug", ""))
+        else:
+            capability = ""
+            task_data = {}
+
+        original_message_id = envelope.get("message_id")
+        try:
+            broadcast_id = uuid.UUID(original_message_id) if original_message_id else uuid.uuid4()
+        except (ValueError, AttributeError):
+            broadcast_id = uuid.uuid4()
+        task_ids = []
+        for member in members:
+            task = Task(
+                id=uuid.uuid4(),
+                from_agent_id=sender.id,
+                to_agent_id=member.id,
+                conversation_id=uuid.UUID(envelope["conversation_id"])
+                if envelope.get("conversation_id")
+                else None,
+                capability_name=capability,
+                payload=task_data,
+                constraints=envelope.get("constraints", {}),
+                status="pending",
+                ttl_seconds=ttl_seconds,
+                envelope_hash=hashlib.sha256(
+                    canonical_json_bytes({k: v for k, v in envelope.items() if k != "signature"})
+                ).hexdigest(),
+            )
+            db.add(task)
+            task_ids.append(str(task.id))
+        await db.flush()
+        await db.commit()
+        await log_audit_event(
+            db,
+            event_type="team_message_broadcast",
+            actor_id=sender.id,
+            target_id=team_id,
+            target_type="team",
+            payload={"broadcast_id": str(broadcast_id), "task_ids": task_ids},
+        )
+
+        nats_ok = await publish_to_team(str(team_id), envelope)
+        http_delivered = 0
+        try:
+            async with httpx.AsyncClient(timeout=min(ttl_seconds, 60) or 30.0) as client:
+                for member in members:
+                    try:
+                        response = await client.post(
+                            member.endpoint,
+                            json=envelope,
+                            headers={"Content-Type": "application/json"},
+                        )
+                        if response.status_code < 400:
+                            http_delivered += 1
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        return {
+            "message_id": str(broadcast_id),
+            "status": "queued",
+            "delivery_mode": "team-nats" if nats_ok else "team-http",
+            "member_count": len(members),
+            "http_delivered": http_delivered,
+            "task_ids": task_ids,
         }
 
     async def get_message(

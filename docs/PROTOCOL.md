@@ -150,7 +150,7 @@ Agents query for peers via `GET /v1/discover`.
 
 ## 4. Message Envelope
 
-All messages between agents are wrapped in a `TaskEnvelope`.
+All messages between agents are wrapped in a `TaskEnvelope`. Direct delivery uses a recipient DID. Team broadcasting uses the destination form `team:<team-uuid>`; the gateway validates the active team, persists one task per active member, and publishes the same signed envelope to the team subject `oan.messages.team.<team-uuid>` in addition to HTTP fan-out.
 
 ```json
 {

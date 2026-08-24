@@ -201,7 +201,9 @@ Requires scope `messages:send`.
 }
 ```
 
-**Errors:** `401` (invalid signature), `404` (recipient not found), `422` (schema validation failed), `429` (rate limited), `503` (recipient unavailable)
+For a team broadcast, set `to` to `team:<team-uuid>`. The response retains `message_id`, `status`, and `delivery_mode` and additionally reports `member_count`, `task_ids`, `http_delivered`, and a `team-nats` or `team-http` delivery mode. The gateway persists one task per active team member and publishes the envelope to `oan.messages.team.<team-uuid>` when NATS is available.
+
+**Errors:** `401` (invalid signature), `400` (invalid or inactive team), `404` (recipient not found), `422` (schema validation failed), `429` (rate limited), `503` (recipient unavailable)
 
 ---
 
