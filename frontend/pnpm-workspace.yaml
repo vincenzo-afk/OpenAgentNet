@@ -1,2 +1,4 @@
+# pnpm 11 build-script policy.
+# unrs-resolver is required by Next.js on the supported Node.js runtime.
 allowBuilds:
-  unrs-resolver: set this to true or false
+  unrs-resolver: true

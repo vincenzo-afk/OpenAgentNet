@@ -102,13 +102,19 @@ export async function fetchMessages(agentId: string, token: string | null): Prom
 }
 
 export async function fetchListings(token: string | null): Promise<MarketplaceListing[]> {
-  const resp = await fetch(`${BASE_URL}/marketplace/listings`, {
-    headers: authHeaders(token),
-    next: { revalidate: 10 },
-  });
-  if (!resp.ok) return [];
-  const data = (await resp.json()) as { listings: MarketplaceListing[] } | { items: MarketplaceListing[] };
-  return (data as { listings?: MarketplaceListing[] }).listings || (data as { items?: MarketplaceListing[] }).items || [];
+  try {
+    const resp = await fetch(`${BASE_URL}/marketplace/listings`, {
+      headers: authHeaders(token),
+      next: { revalidate: 10 },
+    });
+    if (!resp.ok) return [];
+    const data = (await resp.json()) as { listings: MarketplaceListing[] } | { items: MarketplaceListing[] };
+    return (data as { listings?: MarketplaceListing[] }).listings || (data as { items?: MarketplaceListing[] }).items || [];
+  } catch {
+    // Static generation should still render the empty-state marketplace when
+    // the API is intentionally unavailable (for example, in a docs build).
+    return [];
+  }
 }
 
 export async function sendTask(
