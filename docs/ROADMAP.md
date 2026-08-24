@@ -25,7 +25,7 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 - [x] Docker Compose local dev setup
 - [x] Example agent: Echo Agent (returns what it receives)
 - [x] Example agent: Summarizer Agent
-- [x] Dashboard: Agent list, agent detail, trust scores, message inspector, and capability-linked network graph (authenticated `/messages` history with status filtering and refresh)
+- [x] Dashboard: Agent list, agent detail, trust scores, message inspector, and network graph with authenticated recent message-flow edges plus capability fallback (authenticated `/messages` history with status filtering and refresh)
 - [x] API docs via FastAPI `/docs`
 
 **Timeline estimate**: 6–8 weeks (solo) / 3–4 weeks (small team)

@@ -1,7 +1,17 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { fetchMessages, Message } from "@/lib/api";
 import type { AgentSummary } from "@/lib/api";
 
 type NodePosition = { x: number; y: number };
+type FlowEdge = { source: string; target: string; count: number; latest: string | null };
+
+function browserToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem("oan_token");
+}
 
 function nodeColor(agent: AgentSummary): string {
   if (agent.status === "active") return agent.trust_score >= 0.7 ? "#2d6a4f" : "#1f5fa3";
@@ -10,6 +20,7 @@ function nodeColor(agent: AgentSummary): string {
 }
 
 export default function NetworkGraph({ agents }: { agents: AgentSummary[] }) {
+  const [flowEdges, setFlowEdges] = useState<FlowEdge[]>([]);
   const width = 900;
   const height = 390;
   const columns = Math.min(4, Math.max(1, agents.length));
@@ -24,7 +35,32 @@ export default function NetworkGraph({ agents }: { agents: AgentSummary[] }) {
     });
   });
 
-  const edges = agents.flatMap((source, sourceIndex) =>
+  useEffect(() => {
+    const token = browserToken();
+    if (!token || agents.length === 0) return;
+    let cancelled = false;
+    void Promise.all(agents.map((agent) => fetchMessages(agent.agent_id, token)))
+      .then((responses) => {
+        if (cancelled) return;
+        const aggregated = new Map<string, FlowEdge>();
+        responses.flat().forEach((message: Message) => {
+          if (!positions.has(message.from_agent_id) || !positions.has(message.to_agent_id)) return;
+          const key = `${message.from_agent_id}:${message.to_agent_id}`;
+          const previous = aggregated.get(key);
+          aggregated.set(key, {
+            source: message.from_agent_id,
+            target: message.to_agent_id,
+            count: (previous?.count || 0) + 1,
+            latest: previous?.latest && previous.latest > message.created_at ? previous.latest : message.created_at,
+          });
+        });
+        setFlowEdges(Array.from(aggregated.values()));
+      })
+      .catch(() => { if (!cancelled) setFlowEdges([]); });
+    return () => { cancelled = true; };
+  }, [agents]);
+
+  const capabilityEdges = agents.flatMap((source, sourceIndex) =>
     agents.slice(sourceIndex + 1).flatMap((target) => {
       const sourceCapabilities = new Set(source.capabilities);
       const shared = target.capabilities.find((capability) => sourceCapabilities.has(capability));
@@ -38,16 +74,32 @@ export default function NetworkGraph({ agents }: { agents: AgentSummary[] }) {
       <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "baseline", flexWrap: "wrap" }}>
         <div>
           <h2 id="network-graph-title">Network Graph</h2>
-          <p className="note">Connections show shared capabilities; node color reflects status and trust.</p>
+          <p className="note">
+            {flowEdges.length > 0
+              ? "Recent authenticated message flows are shown as edges."
+              : "Authenticate to see recent message flows; capability relationships are shown as a fallback."}{" "}
+            Node color reflects status and trust.
+          </p>
         </div>
-        <span className="note">{edges.length} connection{edges.length === 1 ? "" : "s"}</span>
+        <span className="note">{flowEdges.length > 0 ? flowEdges.length : capabilityEdges.length} connection{(flowEdges.length > 0 ? flowEdges.length : capabilityEdges.length) === 1 ? "" : "s"}</span>
       </div>
       {agents.length === 0 ? (
         <p className="note">Register agents to populate the network graph.</p>
       ) : (
         <div style={{ overflowX: "auto", marginTop: "0.75rem" }}>
           <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Agent network graph" style={{ width: "100%", minWidth: 520, height: "auto", background: "var(--surface, #f8fafc)", borderRadius: 8 }}>
-            {edges.map(({ source, target, label }) => {
+            {flowEdges.length > 0 ? flowEdges.map(({ source, target, count, latest }) => {
+              const from = positions.get(source);
+              const to = positions.get(target);
+              if (!from || !to) return null;
+              return (
+                <g key={`${source}-${target}`}>
+                  <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#1f5fa3" strokeWidth="4" opacity="0.8" />
+                  <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 6} textAnchor="middle" fontSize="11" fill="#1f5fa3">{count} message{count === 1 ? "" : "s"}</text>
+                  {latest && <title>{new Date(latest).toLocaleString()}</title>}
+                </g>
+              );
+            }) : capabilityEdges.map(({ source, target, label }) => {
               const from = positions.get(source.agent_id);
               const to = positions.get(target.agent_id);
               if (!from || !to) return null;
