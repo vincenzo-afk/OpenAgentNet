@@ -132,10 +132,10 @@ A named group of active agents with an owner can be registered through `POST /v1
 A message addressed to `team:<team_id>` through `POST /v1/messages` is validated against an active team, persisted as one auditable task per active member, published once to `oan.messages.team.<team_id>` when NATS is available, and fanned out over HTTP to each registered endpoint. The response reports the broadcast identifier, member count, per-member task identifiers, and delivery counts.
 
 **FR-MEM-001: Shared Memory Write**
-Agents can write key/value entries with a scope (`private`, `shared_with`, `team`).
+Agents can write key/value entries with a scope (`private`, `shared_with`, `team`). `shared_with` uses direct agent grants; `team` requires an active team owner and stores a team ACL grant, so current and future active members can read the entry.
 
 **FR-MEM-002: Shared Memory Read**
-Agents can read entries in their own namespace or in namespaces they have been granted access to.
+Agents can read entries in their own namespace or in namespaces they have been granted access to, including active team memberships resolved through team-scoped ACL grants.
 
 **FR-MEM-003: Memory TTL**
 Memory entries expire at a configurable TTL.

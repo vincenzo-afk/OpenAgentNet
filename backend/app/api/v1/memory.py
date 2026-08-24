@@ -38,6 +38,8 @@ async def write_memory(
             ephemeral=body.ephemeral,
             ttl_seconds=body.ttl_seconds,
             embedding=body.embedding,
+            scope=body.scope,
+            team_id=body.team_id,
         )
         return MemoryObjectResponse(**result)
     except ValueError as e:
@@ -103,6 +105,8 @@ async def update_memory(
             data_type=body.data_type,
             permissions=[p.model_dump() for p in body.permissions] if body.permissions else None,
             embedding=body.embedding,
+            scope=body.scope,
+            team_id=body.team_id,
         )
         return MemoryObjectResponse(**result)
     except ValueError as e:

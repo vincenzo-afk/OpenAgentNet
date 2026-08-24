@@ -176,7 +176,7 @@ The engine dispatches `t1` immediately, `t2` after `t1` succeeds, and so on. If 
 
 **Responsibility**: Allow agents to publish named memory objects that other permitted agents can read, enabling context sharing across sessions.
 
-**Access control**: Memory objects have a permission list — the publishing agent specifies which agents (or capability groups) may read them. No agent may access a memory object it has not been explicitly permitted to read.
+**Access control**: Memory objects have a permission list. The publishing agent may grant a direct agent or an active team; team grants are resolved through `team_members`, so current and future active members may read. No agent may access a memory object it has not been explicitly permitted to read.
 
 **Types**: ephemeral (session-scoped), persistent (stored in PostgreSQL), streaming (live updates via NATS).
 

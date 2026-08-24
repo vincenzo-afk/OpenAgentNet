@@ -288,10 +288,16 @@ Access control for shared memory.
 CREATE TABLE memory_permissions (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     memory_id       UUID NOT NULL REFERENCES memory_objects(id) ON DELETE CASCADE,
-    grantee_agent_id UUID NOT NULL REFERENCES agents(id),
+    grantee_agent_id UUID REFERENCES agents(id) ON DELETE CASCADE,
+    team_id         UUID REFERENCES teams(id) ON DELETE CASCADE,
     permission      TEXT NOT NULL CHECK (permission IN ('read', 'read_write')),
     granted_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT unique_memory_permission UNIQUE (memory_id, grantee_agent_id)
+    CONSTRAINT unique_memory_permission UNIQUE (memory_id, grantee_agent_id),
+    CONSTRAINT unique_memory_team_permission UNIQUE (memory_id, team_id),
+    CONSTRAINT check_memory_permission_target CHECK (
+        (grantee_agent_id IS NOT NULL AND team_id IS NULL) OR
+        (grantee_agent_id IS NULL AND team_id IS NOT NULL)
+    )
 );
 ```
 

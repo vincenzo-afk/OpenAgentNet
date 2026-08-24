@@ -59,14 +59,24 @@ class MemoryPermission(Base):
         ForeignKey("memory_objects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    grantee_agent_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    grantee_agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=True
+    )
+    team_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("teams.id", ondelete="CASCADE"), nullable=True
     )
     permission: Mapped[str] = mapped_column(Text, nullable=False)
     granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     __table_args__ = (
         UniqueConstraint("memory_id", "grantee_agent_id", name="unique_memory_permission"),
+        UniqueConstraint("memory_id", "team_id", name="unique_memory_team_permission"),
         CheckConstraint("permission IN ('read', 'read_write')", name="check_memory_permission"),
+        CheckConstraint(
+            "(grantee_agent_id IS NOT NULL AND team_id IS NULL) OR "
+            "(grantee_agent_id IS NULL AND team_id IS NOT NULL)",
+            name="check_memory_permission_target",
+        ),
         Index("idx_memory_permissions_grantee", "grantee_agent_id"),
+        Index("idx_memory_permissions_team", "team_id"),
     )

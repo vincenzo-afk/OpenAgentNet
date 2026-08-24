@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.identifiers import parse_agent_id
 from app.core.nats_client import publish_event
 from app.models.memory import MemoryObject, MemoryPermission
+from app.models.team import Team, TeamMember
 
 
 def utcnow() -> datetime:
@@ -29,9 +30,25 @@ class MemoryService:
         ephemeral: bool = False,
         ttl_seconds: int | None = None,
         embedding: list[float] | None = None,
+        scope: str = "private",
+        team_id: str | None = None,
     ) -> dict[str, Any]:
         if embedding is not None and len(embedding) != 1536:
             raise ValueError("embedding must contain exactly 1536 dimensions")
+
+        if scope not in ("private", "shared_with", "team"):
+            raise ValueError("scope must be private, shared_with, or team")
+        team_uuid = None
+        if scope == "team":
+            team_uuid = parse_agent_id(team_id)
+            if team_uuid is None:
+                raise ValueError("team_id is required for team scope")
+            team_result = await db.execute(
+                select(Team).where(Team.id == team_uuid, Team.status == "active")
+            )
+            team = team_result.scalar_one_or_none()
+            if not team or team.owner_agent_id != parse_agent_id(owner_agent_id):
+                raise ValueError("Only the active team owner may publish team-scoped memory")
 
         # Namespace isolation (Phase 5 deliverable): an agent may only write
         # memories into its own namespace space. When the namespace is
@@ -103,24 +120,39 @@ class MemoryService:
             },
         )
 
-        # Add permissions if provided
-        if permissions:
-            for perm in permissions:
-                grantee_id = uuid.UUID(perm["grantee_agent_id"])
-                # Check for existing permission
+        # Add direct or team permissions. A team-scoped write grants read
+        # access to all current and future active team members through ACL lookup.
+        permission_specs = list(permissions or [])
+        if team_uuid is not None:
+            permission_specs.append({"team_id": str(team_uuid), "permission": "read"})
+        for perm in permission_specs:
+            target_team_id = parse_agent_id(perm.get("team_id")) if perm.get("team_id") else None
+            grantee_id = parse_agent_id(perm.get("grantee_agent_id")) if perm.get("grantee_agent_id") else None
+            if (target_team_id is None) == (grantee_id is None):
+                raise ValueError("Permission must target exactly one agent or team")
+            if target_team_id is not None:
+                existing_perm = await db.execute(
+                    select(MemoryPermission).where(
+                        MemoryPermission.memory_id == memory.id,
+                        MemoryPermission.team_id == target_team_id,
+                    )
+                )
+            else:
                 existing_perm = await db.execute(
                     select(MemoryPermission).where(
                         MemoryPermission.memory_id == memory.id,
                         MemoryPermission.grantee_agent_id == grantee_id,
                     )
                 )
-                if not existing_perm.scalar_one_or_none():
-                    permission = MemoryPermission(
+            if not existing_perm.scalar_one_or_none():
+                db.add(
+                    MemoryPermission(
                         memory_id=memory.id,
                         grantee_agent_id=grantee_id,
+                        team_id=target_team_id,
                         permission=perm["permission"],
                     )
-                    db.add(permission)
+                )
 
         await db.flush()
 
@@ -160,7 +192,18 @@ class MemoryService:
                 )
             )
             if not perm_result.scalar_one_or_none():
-                return None
+                team_access = await db.execute(
+                    select(MemoryPermission)
+                    .join(TeamMember, TeamMember.team_id == MemoryPermission.team_id)
+                    .join(Team, Team.id == TeamMember.team_id)
+                    .where(
+                        MemoryPermission.memory_id == memory.id,
+                        TeamMember.agent_id == parse_agent_id(agent_id),
+                        Team.status == "active",
+                    )
+                )
+                if not team_access.scalar_one_or_none():
+                    return None
 
         # Check expiry
         if memory.expires_at and memory.expires_at < utcnow():
@@ -255,6 +298,8 @@ class MemoryService:
         data_type: str | None = None,
         permissions: list[dict[str, Any]] | None = None,
         embedding: list[float] | None = None,
+        scope: str = "private",
+        team_id: str | None = None,
     ) -> dict[str, Any]:
         """Update an existing memory object (owner only).
 
@@ -264,6 +309,19 @@ class MemoryService:
         """
         if embedding is not None and len(embedding) != 1536:
             raise ValueError("embedding must contain exactly 1536 dimensions")
+        if scope not in ("private", "shared_with", "team"):
+            raise ValueError("scope must be private, shared_with, or team")
+        team_uuid = None
+        if scope == "team":
+            team_uuid = parse_agent_id(team_id)
+            if team_uuid is None:
+                raise ValueError("team_id is required for team scope")
+            team_result = await db.execute(
+                select(Team).where(Team.id == team_uuid, Team.status == "active")
+            )
+            team = team_result.scalar_one_or_none()
+            if not team or team.owner_agent_id != parse_agent_id(agent_id):
+                raise ValueError("Only the active team owner may publish team-scoped memory")
 
         result = await db.execute(
             select(MemoryObject).where(
@@ -291,14 +349,19 @@ class MemoryService:
                     MemoryPermission.memory_id == memory.id
                 )
             )
-            for perm in permissions:
-                grantee_id = parse_agent_id(perm["grantee_agent_id"])
-                if grantee_id is None:
-                    raise ValueError("Invalid grantee_agent_id")
+            permission_specs = list(permissions)
+            if team_uuid is not None:
+                permission_specs.append({"team_id": str(team_uuid), "permission": "read"})
+            for perm in permission_specs:
+                grantee_id = parse_agent_id(perm.get("grantee_agent_id")) if perm.get("grantee_agent_id") else None
+                team_id = parse_agent_id(perm.get("team_id")) if perm.get("team_id") else None
+                if (grantee_id is None) == (team_id is None):
+                    raise ValueError("Permission must target exactly one agent or team")
                 db.add(
                     MemoryPermission(
                         memory_id=memory.id,
                         grantee_agent_id=grantee_id,
+                        team_id=team_id,
                         permission=perm.get("permission", "read"),
                     )
                 )

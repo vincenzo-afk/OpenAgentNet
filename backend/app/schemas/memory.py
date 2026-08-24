@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 
 class MemoryPermissionSchema(BaseModel):
-    grantee_agent_id: str
+    grantee_agent_id: str | None = None
+    team_id: str | None = None
     permission: str = Field(..., pattern="^(read|read_write)$")
 
 
@@ -17,6 +18,8 @@ class MemoryWriteRequest(BaseModel):
     data: dict[str, Any]
     data_type: str = "json"
     permissions: list[MemoryPermissionSchema] = []
+    scope: Literal["private", "shared_with", "team"] = "private"
+    team_id: str | None = None
     ephemeral: bool = False
     ttl_seconds: int | None = None
     embedding: list[float] | None = None
