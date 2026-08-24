@@ -106,7 +106,7 @@ export class OpenAgentNetClient {
     executorId: string,
     capabilitySlug: string,
     payload: JsonObject,
-    options: { constraints?: JsonObject; ttlSeconds?: number } = {},
+    options: { constraints?: JsonObject; ttlSeconds?: number; contractId?: string } = {},
   ): Promise<JsonObject> {
     return this.request<JsonObject>("/tasks", {
       method: "POST",
@@ -116,6 +116,7 @@ export class OpenAgentNetClient {
         payload,
         constraints: options.constraints ?? {},
         ttl_seconds: options.ttlSeconds ?? 60,
+        contract_id: options.contractId,
       }),
     });
   }

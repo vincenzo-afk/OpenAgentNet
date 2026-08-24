@@ -191,9 +191,9 @@ A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Red
 
 **FR-PRV-001: Privacy-Preserving Outcomes** — Task participants can publish a non-interactive binary outcome proof that verifies success/failure membership without storing the outcome or nonce.
 
-**FR-SDK-001: Python Client SDK** — The Python package provides registry, discovery, task, routing, streaming, versioning, and privacy-proof methods with typed errors.
+**FR-SDK-001: Python Client SDK** — The Python package provides registry, discovery, task, routing, streaming, versioning, and privacy-proof methods with typed errors. `send_task` forwards an optional `contract_id` for negotiated task execution.
 
-**FR-SDK-002: TypeScript Client SDK** — The TypeScript package provides browser/Node `fetch` support, typed APIs, and asynchronous SSE chunk iteration.
+**FR-SDK-002: TypeScript Client SDK** — The TypeScript package provides browser/Node `fetch` support, typed APIs, asynchronous SSE chunk iteration, and optional `contractId` forwarding for negotiated tasks.
 
 **FR-CLI-001: oan CLI** — The command-line client supports discovery, routing, task operations, agent version history/diffs, streams, and proof verification with JSON output.
 

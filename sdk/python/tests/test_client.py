@@ -25,6 +25,20 @@ def test_send_task_sends_bearer_auth_and_payload() -> None:
     assert json.loads(captured["json"])["capability_slug"] == "echo"
 
 
+def test_send_task_forwards_contract_id() -> None:
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["json"] = json.loads(request.read())
+        return httpx.Response(201, json={"task_id": "t-1", "status": "pending"})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = OpenAgentNetClient(client=http_client)
+        client.send_task("agent-1", "echo", {"text": "hi"}, contract_id="contract-1")
+
+    assert captured["json"]["contract_id"] == "contract-1"
+
+
 def test_stream_task_chunks_decodes_server_sent_events() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(

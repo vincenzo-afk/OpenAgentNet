@@ -1,6 +1,6 @@
 # OpenAgentNet TypeScript SDK
 
-`@openagentnet/client` is a dependency-light TypeScript client for browser and Node runtimes with `fetch`. It covers agent registration and discovery, task submission, capability-aware routing, incremental SSE task streams, agent version diffs, and privacy-proof verification.
+`@openagentnet/client` is a dependency-light TypeScript client for browser and Node runtimes with `fetch`. It covers agent registration and discovery, task submission, capability-aware routing, incremental SSE task streams, agent version diffs, and privacy-proof verification. Negotiated tasks may pass an accepted `contractId` in the `sendTask` options.
 
 ```bash
 pnpm add @openagentnet/client

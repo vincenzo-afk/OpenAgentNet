@@ -92,6 +92,7 @@ class OpenAgentNetClient:
         *,
         constraints: Mapping[str, Any] | None = None,
         ttl_seconds: int = 60,
+        contract_id: str | None = None,
     ) -> dict[str, Any]:
         return self._request(
             "POST",
@@ -102,6 +103,7 @@ class OpenAgentNetClient:
                 "payload": dict(payload),
                 "constraints": dict(constraints or {}),
                 "ttl_seconds": ttl_seconds,
+                "contract_id": contract_id,
             },
         )
 
