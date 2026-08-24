@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   backend:
@@ -86,8 +87,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm install -g pnpm@latest && pnpm --version
-      - run: pnpm config set only-built-dependencies unrs-resolver && pnpm install --no-frozen-lockfile
+      - run: npm install -g pnpm@11.21.0 && pnpm --version
+      - run: pnpm install --no-frozen-lockfile
         working-directory: frontend
       - run: pnpm build
         working-directory: frontend
