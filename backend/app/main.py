@@ -10,6 +10,7 @@ from app.api.v1.common import router as common_router
 from app.api.v1.discovery import router as discovery_router
 from app.api.v1.federation import router as federation_router
 from app.api.v1.marketplace import router as marketplace_router
+from app.api.v1.privacy import router as privacy_router
 from app.api.v1.memory import router as memory_router
 from app.api.v1.messages import router as messages_router
 from app.api.v1.messages import task_router as tasks_router
@@ -70,6 +71,7 @@ app.include_router(routing_router, prefix=prefix)
 app.include_router(workflows_router, prefix=prefix)
 app.include_router(memory_router, prefix=prefix)
 app.include_router(marketplace_router, prefix=prefix)
+app.include_router(privacy_router, prefix=prefix)
 app.include_router(common_router, prefix=prefix)
 
 
