@@ -69,7 +69,16 @@ registry = TrustComponentRegistry()
 def _register_defaults() -> None:
     settings = get_settings()
     registry.register("outcome_rate", settings.trust_weight_outcome, lambda record: float(record.outcome_rate), "Successful task ratio")
-    registry.register("latency_adherence", settings.trust_weight_latency, lambda _record: 0.8, "Latency adherence baseline")
+    registry.register(
+        "latency_adherence",
+        settings.trust_weight_latency,
+        lambda record: float(
+            getattr(record, "_latency_adherence", None)
+            if getattr(record, "_latency_adherence", None) is not None
+            else (record.component_scores or {}).get("latency_adherence", 0.5)
+        ),
+        "Observed execution time relative to the requested or declared latency target",
+    )
     registry.register("dispute_health", settings.trust_weight_dispute, lambda record: 1.0 - float(record.dispute_penalty), "Inverse verified dispute penalty")
     registry.register("age_factor", settings.trust_weight_age, lambda record: float(record.age_factor), "Account age confidence factor")
 

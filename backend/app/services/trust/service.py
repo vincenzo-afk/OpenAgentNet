@@ -3,7 +3,7 @@
 Composite trust score components (see docs/DESIGN.md and SECURITY.md):
 
 - outcome_rate     : successful tasks / total tasks (weighted by settings)
-- latency_adherence: placeholder (0.8 fixed baseline until latency targets land)
+- latency_adherence: observed execution time relative to a task max-latency constraint or the capability's declared estimate; unknown targets are neutral
 - endorsement_score: weighted mean of endorsement weights; each endorser's
   weight is its own trust_score dampened (transitive trust with decay).
   Endorsement rings (A→B→A) count at most one direction.
@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import log_audit_event
 from app.core.config import get_settings
 from app.core.identifiers import parse_agent_id
+from app.models.agent import Agent
 from app.models.task import Task
 from app.models.trust import Dispute, Endorsement, TrustRecord
 from app.services.trust.components import get_trust_components
@@ -96,6 +97,41 @@ class TrustService:
             return self._record_to_dict(record)
         return self._record_to_dict(record)
 
+    @staticmethod
+    def _latency_adherence(execution_ms: int | None, target_ms: int | None) -> float:
+        """Return 1.0 on target and decay proportionally when slower.
+
+        A missing observation or target is neutral (0.5), rather than rewarding
+        an agent for an SLA that was never declared.
+        """
+        if execution_ms is None or execution_ms < 0 or target_ms is None or target_ms <= 0:
+            return 0.5
+        return round(min(1.0, target_ms / max(execution_ms, 1)), 3)
+
+    async def _latency_target_ms(self, db: AsyncSession, task: Task) -> int | None:
+        constraints = task.constraints if isinstance(task.constraints, dict) else {}
+        for key in ("max_latency_ms", "latency_target_ms"):
+            value = constraints.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+                return int(value)
+        sla = constraints.get("sla")
+        if isinstance(sla, dict):
+            value = sla.get("max_latency_ms")
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+                return int(value)
+
+        result = await db.execute(select(Agent.capabilities).where(Agent.id == task.to_agent_id))
+        capabilities = result.scalar_one_or_none() or []
+        if isinstance(capabilities, dict):
+            capabilities = [capabilities]
+        for capability in capabilities:
+            if not isinstance(capability, dict) or capability.get("name") != task.capability_name:
+                continue
+            value = capability.get("latency_estimate_ms")
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+                return int(value)
+        return None
+
     async def record_outcome(
         self,
         db: AsyncSession,
@@ -122,6 +158,9 @@ class TrustService:
         record.outcome_rate = (
             record.successful_tasks / record.total_tasks if record.total_tasks > 0 else 0.5
         )
+        observed_ms = execution_ms if execution_ms is not None else task.execution_ms
+        target_ms = await self._latency_target_ms(db, task)
+        record._latency_adherence = self._latency_adherence(observed_ms, target_ms)
         await self._check_anomalies(db, record)
         record.trust_score = self._compute_trust_score(record)
         record.last_computed_at = utcnow()
@@ -544,7 +583,7 @@ class TrustService:
     def _record_to_dict(self, record: TrustRecord) -> dict[str, Any]:
         components = {
             "task_completion_rate": float(record.outcome_rate),
-            "latency_adherence": 0.8,
+            "latency_adherence": (record.component_scores or {}).get("latency_adherence", 0.5),
             "endorsement_score": float(record.endorsement_score),
             "dispute_penalty": float(record.dispute_penalty),
             "age_factor": float(record.age_factor),
