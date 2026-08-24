@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oan-cli"
+version = "0.1.0"
+description = "OpenAgentNet command-line client"
+requires-python = ">=3.11"
+dependencies = ["openagentnet>=0.1.0"]
+license = {text = "Apache-2.0"}
+
+[project.scripts]
+oan = "oan.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
