@@ -21,7 +21,7 @@ metadata:
   namespace: openagentnet
 data:
   REDIS_URL: redis://redis:6379/0
-  # Comma-separated redis://host:port startup nodes; set for managed Redis Cluster deployments.
+  # Comma-separated redis:// or rediss:// startup nodes; set for managed Redis Cluster deployments.
   REDIS_CLUSTER_URLS: ""
   NATS_URL: nats://oan-nats:4222
   NATS_CLUSTER_NAME: openagentnet

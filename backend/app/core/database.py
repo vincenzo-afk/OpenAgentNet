@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from redis.asyncio import Redis
 from redis.asyncio.cluster import RedisCluster
@@ -57,15 +57,23 @@ async def get_redis() -> Redis | RedisCluster:
         cluster_urls = [url.strip() for url in settings.redis_cluster_urls.split(",") if url.strip()]
         if cluster_urls:
             nodes = []
+            cluster_options = {}
             for url in cluster_urls:
                 parsed = urlparse(url)
-                if not parsed.hostname:
-                    raise ValueError("Invalid Redis Cluster startup URL")
+                if parsed.scheme not in {"redis", "rediss"} or not parsed.hostname:
+                    raise ValueError("Invalid Redis Cluster startup URL; expected redis:// or rediss://host:port")
                 nodes.append(ClusterNode(parsed.hostname, parsed.port or 6379))
+                if not cluster_options:
+                    cluster_options = {
+                        "ssl": parsed.scheme == "rediss",
+                        "username": unquote(parsed.username) if parsed.username else None,
+                        "password": unquote(parsed.password) if parsed.password else None,
+                    }
             _redis_client = RedisCluster(
                 startup_nodes=nodes,
                 decode_responses=True,
                 require_full_coverage=False,
+                **cluster_options,
             )
         else:
             _redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
