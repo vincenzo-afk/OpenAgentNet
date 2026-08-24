@@ -9,6 +9,8 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from typing import Any
 
+from app.core.config import get_settings
+
 try:
     from opentelemetry import trace
 except ImportError:  # pragma: no cover - optional local fallback
@@ -69,6 +71,48 @@ class MetricsRegistry:
 
 
 metrics = MetricsRegistry()
+
+
+def configure_tracing() -> None:
+    """Configure an SDK tracer only when an exporter is explicitly enabled."""
+    if trace is None:
+        return
+    try:
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
+    except ImportError:  # pragma: no cover - optional deployment dependency
+        return
+
+    provider = trace.get_tracer_provider()
+    if provider.__class__.__name__ != "ProxyTracerProvider":
+        return
+
+    settings = get_settings()
+    sdk_provider = TracerProvider(
+        resource=Resource.create({"service.name": settings.otel_service_name})
+    )
+    exporter_name = (settings.otel_traces_exporter or "").lower()
+    if exporter_name in {"otlp", "otlp_http"} and settings.otel_exporter_otlp_endpoint:
+        try:
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+            endpoint = settings.otel_exporter_otlp_endpoint.rstrip("/")
+            if not endpoint.endswith("/v1/traces"):
+                endpoint = f"{endpoint}/v1/traces"
+            sdk_provider.add_span_processor(
+                BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
+            )
+        except ImportError:
+            logging.getLogger(__name__).warning(
+                "OTLP exporter requested but opentelemetry-exporter-otlp-proto-http is unavailable"
+            )
+    elif exporter_name == "console":
+        from opentelemetry.sdk.trace.export import ConsoleSpanExporter
+
+        sdk_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+
+    trace.set_tracer_provider(sdk_provider)
 
 
 def configure_json_logging() -> None:

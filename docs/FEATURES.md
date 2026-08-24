@@ -211,4 +211,4 @@ A Kustomize-compatible deployment bundle provisions the backend, PostgreSQL, Red
 
 **NFR-005: Scalability** — Horizontal scaling on all stateless services. Read replicas for PostgreSQL. Redis cluster mode.
 
-**NFR-006: Observability** — OpenTelemetry-compatible spans are emitted when the API is installed, Prometheus-compatible request metrics are exported at `/metrics`, every request receives an `X-Request-ID`, and logs use structured JSON formatting.
+**NFR-006: Observability** — When `OTEL_TRACES_EXPORTER=otlp` and `OTEL_EXPORTER_OTLP_ENDPOINT` are configured, the API initializes an OpenTelemetry SDK tracer with OTLP HTTP export; `console` export is also supported. Prometheus-compatible request metrics are exported at `/metrics`, every request receives an `X-Request-ID`, and logs use structured JSON formatting.

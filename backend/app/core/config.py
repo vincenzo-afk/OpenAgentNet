@@ -46,6 +46,9 @@ class Settings(BaseSettings):
 
     # API
     api_v1_prefix: str = "/v1"
+    otel_service_name: str = "openagentnet-api"
+    otel_traces_exporter: str = ""
+    otel_exporter_otlp_endpoint: str | None = None
     cors_origins: list[str] = ["http://localhost:3000"]
 
     # Trust score weights

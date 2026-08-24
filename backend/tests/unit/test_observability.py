@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from starlette.responses import Response
 
-from app.core.observability import JsonFormatter, MetricsRegistry, observe_http, request_id
+from app.core.observability import JsonFormatter, MetricsRegistry, configure_tracing, observe_http, request_id
 
 
 def test_json_formatter_emits_structured_fields() -> None:
@@ -26,6 +26,13 @@ def test_metrics_registry_renders_prometheus_counters() -> None:
     assert "openagentnet_http_requests_total" in output
     assert 'method="GET"' in output
     assert "openagentnet_http_request_duration_seconds_sum" in output
+
+
+def test_configure_tracing_installs_sdk_provider() -> None:
+    from opentelemetry import trace
+
+    configure_tracing()
+    assert trace.get_tracer_provider().__class__.__name__ == "TracerProvider"
 
 
 def test_request_id_reuses_provided_value() -> None:
