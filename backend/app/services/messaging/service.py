@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.core.crypto import base64_to_public_key, canonical_json_bytes, verify_signature
 from app.core.identifiers import parse_agent_id
 from app.core.nats_client import publish_agent_announce, publish_to_agent
+from app.core.schema_validation import validate_payload
 from app.models.agent import Agent
 from app.models.task import Task
 
@@ -82,6 +83,15 @@ class MessagingService:
         if agents:
             await db.flush()
         return len(agents)
+
+    @staticmethod
+    def _capability_input_schema(agent: Agent, capability: str) -> dict[str, Any] | None:
+        capabilities = agent.capabilities if isinstance(agent.capabilities, list) else []
+        for item in capabilities:
+            if isinstance(item, dict) and item.get("name") == capability:
+                schema = item.get("input_schema")
+                return schema if isinstance(schema, dict) else None
+        return None
 
     async def send_message(
         self, db: AsyncSession, envelope: dict[str, Any], sender_id: str
@@ -160,12 +170,18 @@ class MessagingService:
         task_data = envelope.get("task") or envelope.get("body") or envelope.get("payload") or {}
         if isinstance(task_data, str):
             capability = task_data
-            task_data = {"name": task_data}
+            task_data = {"name": task_data, "payload": envelope.get("payload", {})}
         elif isinstance(task_data, dict):
             capability = task_data.get("name", task_data.get("slug", ""))
         else:
             capability = ""
             task_data = {}
+
+        if get_settings().validate_task_payloads:
+            input_schema = self._capability_input_schema(recipient, capability)
+            if input_schema is not None:
+                payload = task_data.get("payload", {}) if isinstance(task_data, dict) else {}
+                validate_payload(payload, input_schema)
 
         # Create task record
         task = Task(
