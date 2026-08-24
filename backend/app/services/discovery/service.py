@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy import Numeric, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.capability_index import candidate_ids
 from app.core.identifiers import parse_agent_id
 from app.models.agent import Agent
 from app.models.trust import TrustRecord
@@ -25,6 +26,16 @@ class DiscoveryService:
         filters = filters or {}
         query = select(Agent).where(Agent.deleted_at.is_(None))
         count_query = select(func.count(Agent.id)).where(Agent.deleted_at.is_(None))
+
+        # Redis is a hot candidate index; if it has candidates, constrain both
+        # statements before applying authoritative PostgreSQL filters.
+        indexed_ids = await candidate_ids(
+            capabilities or [],
+            min_trust_score=filters.get("min_trust_score"),
+        )
+        if indexed_ids:
+            query = query.where(Agent.id.in_(indexed_ids))
+            count_query = count_query.where(Agent.id.in_(indexed_ids))
 
         # Status filter
         status = filters.get("status", "active")

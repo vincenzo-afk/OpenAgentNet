@@ -28,6 +28,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_audit_event
+from app.core.capability_index import update_agent_score
 from app.core.config import get_settings
 from app.core.identifiers import parse_agent_id
 from app.models.agent import Agent
@@ -163,6 +164,7 @@ class TrustService:
         record._latency_adherence = self._latency_adherence(observed_ms, target_ms)
         await self._check_anomalies(db, record)
         record.trust_score = self._compute_trust_score(record)
+        await update_agent_score(record.agent_id, float(record.trust_score))
         record.last_computed_at = utcnow()
         record.updated_at = utcnow()
 
@@ -275,6 +277,7 @@ class TrustService:
             if target_record:
                 target_record.endorsement_score = 0.5
                 target_record.trust_score = self._compute_trust_score(target_record)
+                await update_agent_score(target_record.agent_id, float(target_record.trust_score))
             return
 
         weights: list[float] = []
@@ -291,6 +294,7 @@ class TrustService:
         if target_record:
             target_record.endorsement_score = round(min(avg, 1.0), 3)
             target_record.trust_score = self._compute_trust_score(target_record)
+            await update_agent_score(target_record.agent_id, float(target_record.trust_score))
             target_record.updated_at = utcnow()
 
     async def _check_anomalies(self, db: AsyncSession, record: TrustRecord) -> None:
@@ -472,6 +476,7 @@ class TrustService:
                 payload={"dispute_id": str(dispute.id), "verdict": verdict},
             )
             record.trust_score = self._compute_trust_score(record)
+            await update_agent_score(record.agent_id, float(record.trust_score))
             record.updated_at = utcnow()
 
         try:

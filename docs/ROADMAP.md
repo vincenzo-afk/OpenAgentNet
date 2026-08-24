@@ -17,6 +17,7 @@ OpenAgentNet is built in focused phases, each ending at a fully testable, usable
 - [x] Agent Registry Service (`/v1/agents`)
 - [x] Agent authentication (API key + Ed25519 proof-of-possession + JWT)
 - [x] Discovery Engine with capability, tag, trust, region, and p95-latency search plus trust/latency/registration sorting (`/v1/discover`)
+- [x] Redis sorted-set capability index synchronized on agent lifecycle and trust updates, with PostgreSQL fallback
 - [x] NATS setup with JetStream streams (`TASKS`, `EVENTS`)
 - [x] Messaging Service (send, receive, ack, cancel)
 - [x] Basic trust score (outcome rate + endorsements + age factor + dispute penalty)

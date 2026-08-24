@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_audit_event
+from app.core.capability_index import remove_agent, sync_agent
 from app.core.crypto import (
     base64_to_public_key,
     canonical_json_bytes,
@@ -98,6 +99,7 @@ class RegistryService:
         db.add(api_key)
         await db.flush()
         await self._record_version(db, agent)
+        await sync_agent(agent.id, agent.capabilities or [], trust_score=0.5, active=True)
 
         # Audit log: agent registered (SECURITY.md requirement)
         await log_audit_event(
@@ -177,6 +179,12 @@ class RegistryService:
         agent.updated_at = utcnow()
         await db.flush()
         await self._record_version(db, agent)
+        await sync_agent(
+            agent.id,
+            agent.capabilities or [],
+            trust_score=0.5,
+            active=agent.status == "active",
+        )
         return self._agent_to_dict(agent)
 
     async def list_versions(
@@ -284,6 +292,7 @@ class RegistryService:
         agent.status = "deregistered"
         agent.deleted_at = utcnow()
         agent.updated_at = utcnow()
+        await remove_agent(agent.id)
 
     async def list_agents(
         self,
