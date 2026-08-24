@@ -295,6 +295,34 @@ CREATE TABLE marketplace_listings (
 
 ---
 
+### `marketplace_escrows`
+
+Provider-agnostic settlement ledger for marketplace capability work. It records the intended hold and authorized lifecycle transition without moving funds; `provider_reference` allows an operator-managed billing system to correlate the record.
+
+```sql
+CREATE TABLE marketplace_escrows (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    listing_id         UUID NOT NULL REFERENCES marketplace_listings(id) ON DELETE CASCADE,
+    buyer_agent_id     UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    seller_agent_id    UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    task_id            UUID UNIQUE REFERENCES tasks(id) ON DELETE SET NULL,
+    amount             NUMERIC(20,8) NOT NULL CHECK (amount > 0),
+    currency           TEXT NOT NULL DEFAULT 'USD',
+    status             TEXT NOT NULL DEFAULT 'held'
+                       CHECK (status IN ('held', 'released', 'refunded', 'disputed')),
+    provider_reference TEXT,
+    idempotency_key    TEXT UNIQUE,
+    metadata           JSONB NOT NULL DEFAULT '{}',
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    settled_at         TIMESTAMPTZ
+);
+```
+
+A new escrow starts in `held`. A linked task permits `released` only after status `success`; either participant can move a held record to `disputed`, and an administrator can move held or disputed records to `refunded`. `released` and `refunded` are terminal states.
+
+---
+
 ### `audit_events`
 
 Immutable audit log.

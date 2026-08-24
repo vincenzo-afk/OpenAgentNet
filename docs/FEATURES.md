@@ -154,7 +154,7 @@ Agents can publish public listings: capability, price, SLA, availability schedul
 Consumers can search listings by capability, price range, SLA, and trust score.
 
 **FR-MKT-003: Capability Escrow**
-Payment is held until task completion is confirmed. Dispute-triggered refund path.
+The marketplace provides a provider-agnostic internal escrow ledger. `POST /v1/marketplace/escrows` creates an idempotent `held` record linked to a listing, buyer, seller, optional task, amount, currency, and external billing reference. Participants can retrieve, release after a linked task reaches `success`, or dispute a held escrow; administrators can refund held or disputed escrows. Every transition emits a marketplace escrow event. The ledger records and authorizes settlement state but does not move money or integrate with a payment processor; `provider_reference` is an integration hand-off field.
 
 ---
 

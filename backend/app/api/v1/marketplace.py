@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_subject, get_db_session, get_optional_subject, require_scope
 from app.schemas.marketplace import (
     BillingWebhookRequest,
+    MarketplaceEscrowActionRequest,
+    MarketplaceEscrowCreateRequest,
+    MarketplaceEscrowResponse,
     MarketplaceListingRequest,
     MarketplaceListingResponse,
     MarketplaceSearchResponse,
@@ -122,6 +125,101 @@ async def get_metering(
         return result
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post(
+    "/escrows", response_model=MarketplaceEscrowResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_escrow(
+    body: MarketplaceEscrowCreateRequest,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("marketplace:escrow"))],
+):
+    try:
+        result = await marketplace_service.create_escrow(
+            db,
+            buyer_agent_id=payload.get("agent_id", ""),
+            listing_id=body.listing_id,
+            amount=body.amount,
+            currency=body.currency,
+            task_id=body.task_id,
+            provider_reference=body.provider_reference,
+            idempotency_key=body.idempotency_key,
+            metadata=body.metadata,
+        )
+        return MarketplaceEscrowResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get("/escrows/{escrow_id}", response_model=MarketplaceEscrowResponse)
+async def get_escrow(
+    escrow_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("marketplace:escrow"))],
+):
+    try:
+        result = await marketplace_service.get_escrow(db, escrow_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Escrow not found")
+    actor_id = payload.get("agent_id", "")
+    if actor_id not in (result["buyer_agent_id"], result["seller_agent_id"]):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not an escrow participant")
+    return MarketplaceEscrowResponse(**result)
+
+
+@router.post("/escrows/{escrow_id}/release", response_model=MarketplaceEscrowResponse)
+async def release_escrow(
+    escrow_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("marketplace:escrow"))],
+):
+    try:
+        result = await marketplace_service.release_escrow(db, escrow_id, payload.get("agent_id", ""))
+        return MarketplaceEscrowResponse(**result)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        code = status.HTTP_404_NOT_FOUND if str(exc) == "Escrow not found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=str(exc))
+
+
+@router.post("/escrows/{escrow_id}/dispute", response_model=MarketplaceEscrowResponse)
+async def dispute_escrow(
+    escrow_id: str,
+    body: MarketplaceEscrowActionRequest,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("marketplace:escrow"))],
+):
+    try:
+        result = await marketplace_service.dispute_escrow(
+            db, escrow_id, payload.get("agent_id", ""), body.reason
+        )
+        return MarketplaceEscrowResponse(**result)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        code = status.HTTP_404_NOT_FOUND if str(exc) == "Escrow not found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=str(exc))
+
+
+@router.post("/escrows/{escrow_id}/refund", response_model=MarketplaceEscrowResponse)
+async def refund_escrow(
+    escrow_id: str,
+    body: MarketplaceEscrowActionRequest,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: Annotated[dict, Depends(require_scope("admin"))],
+):
+    try:
+        result = await marketplace_service.refund_escrow(
+            db, escrow_id, body.reason, payload.get("agent_id")
+        )
+        return MarketplaceEscrowResponse(**result)
+    except ValueError as exc:
+        code = status.HTTP_404_NOT_FOUND if str(exc) == "Escrow not found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=str(exc))
 
 
 @router.post("/webhooks/billing", status_code=status.HTTP_202_ACCEPTED)

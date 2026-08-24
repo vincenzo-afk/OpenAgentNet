@@ -233,6 +233,7 @@ See [DATA_MODEL.md](./DATA_MODEL.md) for full schema definitions.
 | `memory_objects` | Shared memory entries |
 | `memory_permissions` | Access control for memory objects |
 | `marketplace_listings` | Marketplace agent listings |
+| `marketplace_escrows` | Provider-agnostic marketplace hold and settlement-state ledger |
 
 ---
 

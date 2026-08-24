@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class MarketplaceListingRequest(BaseModel):
@@ -47,6 +48,37 @@ class MarketplaceSearchResponse(BaseModel):
 class TierUpdateRequest(BaseModel):
     access_tier: str
     tier_details: dict[str, Any] | None = None
+
+
+class MarketplaceEscrowCreateRequest(BaseModel):
+    listing_id: str
+    amount: Decimal = Field(gt=0)
+    currency: str = Field(default="USD", min_length=1, max_length=12)
+    task_id: str | None = None
+    provider_reference: str | None = Field(default=None, max_length=255)
+    idempotency_key: str | None = Field(default=None, max_length=255)
+    metadata: dict[str, Any] = {}
+
+
+class MarketplaceEscrowActionRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class MarketplaceEscrowResponse(BaseModel):
+    escrow_id: str
+    listing_id: str
+    buyer_agent_id: str
+    seller_agent_id: str
+    task_id: str | None = None
+    amount: Decimal
+    currency: str
+    status: str
+    provider_reference: str | None = None
+    idempotency_key: str | None = None
+    metadata: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    settled_at: datetime | None = None
 
 
 class BillingWebhookRequest(BaseModel):
