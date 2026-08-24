@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from urllib.parse import urlparse
 
 from redis.asyncio import Redis
+from redis.asyncio.cluster import RedisCluster
+from redis.cluster import ClusterNode
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 
 _engine = None
 _session_factory = None
-_redis_client: Redis | None = None
+_redis_client: Redis | RedisCluster | None = None
 
 
 def get_engine():
@@ -47,11 +50,25 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async def get_redis() -> Redis:
+async def get_redis() -> Redis | RedisCluster:
     global _redis_client
     if _redis_client is None:
         settings = get_settings()
-        _redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
+        cluster_urls = [url.strip() for url in settings.redis_cluster_urls.split(",") if url.strip()]
+        if cluster_urls:
+            nodes = []
+            for url in cluster_urls:
+                parsed = urlparse(url)
+                if not parsed.hostname:
+                    raise ValueError("Invalid Redis Cluster startup URL")
+                nodes.append(ClusterNode(parsed.hostname, parsed.port or 6379))
+            _redis_client = RedisCluster(
+                startup_nodes=nodes,
+                decode_responses=True,
+                require_full_coverage=False,
+            )
+        else:
+            _redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
     return _redis_client
 
 

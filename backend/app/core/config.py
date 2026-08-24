@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
+    redis_cluster_urls: str = ""
 
     # NATS
     nats_url: str = "nats://localhost:4222"
