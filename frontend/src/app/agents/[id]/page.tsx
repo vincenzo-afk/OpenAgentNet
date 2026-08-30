@@ -3,14 +3,19 @@ import { notFound } from "next/navigation";
 import SendTaskForm from "@/components/SendTaskForm";
 import { fetchAgentDetail, fetchMessages, fetchTrust, fetchTrustEvents } from "@/lib/api";
 
-export default async function AgentDetailPage({ params }: { params: { id: string } }) {
-  const agent = await fetchAgentDetail(params.id, null);
+export default async function AgentDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const agent = await fetchAgentDetail(id, null);
   if (!agent) notFound();
 
   const [trust, messages, trustEvents] = await Promise.all([
-    fetchTrust(params.id, null),
-    fetchMessages(params.id, null).catch(() => []),
-    fetchTrustEvents(params.id, null).catch(() => []),
+    fetchTrust(id, null),
+    fetchMessages(id, null).catch(() => []),
+    fetchTrustEvents(id, null).catch(() => []),
   ]);
 
   return (

@@ -1,309 +1,214 @@
-# <p align="center">🌐 OpenAgentNet</p>
+# OpenAgentNet
 
-<p align="center">
-  <strong>The protocol and infrastructure layer for AI agent networks</strong>
-</p>
+> The protocol and infrastructure layer for interoperable AI-agent networks.
 
-<p align="center">
-  <a href="https://github.com/vincenzo-afk/OpenAgentNet/actions/workflows/ci.yml"><img src="https://github.com/vincenzo-afk/OpenAgentNet/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
-  <a href="https://github.com/vincenzo-afk/OpenAgentNet/blob/main/LICENSE"><img src="https://img.shields.io/github/license/vincenzo-afk/OpenAgentNet" alt="License"></a>
-  <a href="https://github.com/vincenzo-afk/OpenAgentNet/releases"><img src="https://img.shields.io/github/v/release/vincenzo-afk/OpenAgentNet" alt="Release Status"></a>
-  <a href="https://github.com/vincenzo-afk/OpenAgentNet/stargazers"><img src="https://img.shields.io/github/stars/vincenzo-afk/OpenAgentNet" alt="Stars"></a>
-</p>
+[![CI](https://github.com/vincenzo-afk/OpenAgentNet/actions/workflows/ci.yml/badge.svg)](https://github.com/vincenzo-afk/OpenAgentNet/actions/workflows/ci.yml)
+[![Security Scan](https://github.com/vincenzo-afk/OpenAgentNet/actions/workflows/security.yml/badge.svg)](https://github.com/vincenzo-afk/OpenAgentNet/actions/workflows/security.yml)
+[![License](https://img.shields.io/github/license/vincenzo-afk/OpenAgentNet)](LICENSE)
 
-<p align="center">
-  <a href="#about">About</a> •
-  <a href="#getting-started">Getting Started</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#api-reference">API</a> •
-  <a href="#roadmap">Roadmap</a> •
-  <a href="#contributing">Contributing</a>
-</p>
+OpenAgentNet provides the protocol and infrastructure required for autonomous agents to **register, discover one another, negotiate work, execute workflows, share controlled memory, exchange signed messages, and build trust**. The repository contains a FastAPI backend, a Next.js dashboard, a Python command-line client, SDKs, infrastructure manifests, and detailed protocol documentation.
 
----
+## Project status
 
-## 1. <a name="header"></a>Header
+OpenAgentNet is under active development. The current repository includes identity and registry capabilities, discovery, messaging, negotiation, orchestration, shared memory, trust and reputation, marketplace services, privacy controls, routing, teams, streaming, and versioning. Distributed execution is listed as a future milestone in [the roadmap](docs/ROADMAP.md).
 
-```text
-  ____                   _                      _   _      _   
- / __ \                 / \   __ _  ___ _ __ | |_| \ | | ___| |_ 
-| |  | |               / _ \ / _` |/ _ \ '_ \| __|  \| |/ _ \ __|
-| |__| |  _ __   ___  / ___ \ (_| |  __/ | | | |_| |\  |  __/ |_ 
- \____/  | '_ \ / _ \/_/   \_\__, |\___|_| |_|\__|_| \_|\___|\__|
-         | |_) |  __/         |___/                              
-         | .__/ \___|                                            
-         |_|                                                     
-```
-
-OpenAgentNet is an open-source protocol and infrastructure layer designed to enable seamless cooperation, discovery, and marketplace interactions between autonomous AI agents. It provides the essential "connective tissue" for the agentic economy, ensuring trust, reliability, and interoperability across heterogeneous agent systems.
-
-## 2. <a name="toc"></a>Table of Contents
-
-- [1. Header](#header)
-- [2. Table of Contents](#toc)
-- [3. About the Project](#about)
-- [4. Tech Stack](#tech-stack)
-- [5. Getting Started](#getting-started)
-- [6. Usage](#usage)
-- [7. API Reference](#api-reference)
-- [8. Project Structure](#project-structure)
-- [9. Features & Roadmap](#roadmap)
-- [10. Testing](#testing)
-- [11. Deployment](#deployment)
-- [12. Contributing](#contributing)
-- [13. Security](#security)
-- [14. License](#license)
-- [15. Acknowledgments](#acknowledgments)
-- [16. Footer](#footer)
-
-## 3. <a name="about"></a>About the Project
-
-OpenAgentNet solves the fragmentation in the AI agent ecosystem by providing a standardized way for agents to find, trust, and work with each other.
-
-### Key Features
-
-- 🆔 **Identity & Registry**: Decentralized Identifiers (DIDs) for agents based on Ed25519 key pairs.
-- 🔍 **Discovery Engine**: Find agents by capability, trust score, and availability.
-- 🤝 **Negotiation Protocol**: Structured proposal/counter-proposal state machine for task parameters.
-- 🏗️ **Orchestration Engine**: Execute complex multi-agent workflows defined as Directed Acyclic Graphs (DAGs).
-- 🧠 **Shared Memory**: ACL-protected context sharing between agents with TTL support.
-- ⚖️ **Trust & Reputation**: Evidence-based trust scores incorporating task outcomes, peer endorsements, and disputes.
-- 🛒 **Marketplace**: Agent listings with tiered pricing (Free, Paid, Invite-only) and SLA definitions.
-
-### Architecture Overview
+## Architecture
 
 ```mermaid
 graph TD
-    A[Agent A] -->|Register| R[Registry]
-    A -->|Discover| D[Discovery Engine]
-    A -->|Negotiate| B[Agent B]
-    A -->|Submit Workflow| O[Orchestration Engine]
-    O -->|Dispatch Tasks| B
-    O -->|Dispatch Tasks| C[Agent C]
-    B -->|Read/Write| M[Shared Memory]
-    C -->|Read/Write| M
-    B -->|Report Result| T[Trust Service]
-    T -->|Update Score| R
+    Client[Agent or Client] --> API[FastAPI API]
+    API --> Registry[Registry and Identity]
+    API --> Discovery[Discovery]
+    API --> Messaging[Messaging and Tasks]
+    API --> Orchestration[Workflow Orchestration]
+    API --> Memory[Shared Memory]
+    API --> Trust[Trust and Reputation]
+    API --> Marketplace[Marketplace]
+    API --> Teams[Teams and Negotiation]
+    Registry --> DB[(PostgreSQL + pgvector)]
+    Discovery --> DB
+    Memory --> DB
+    Trust --> DB
+    API --> Redis[(Redis)]
+    API --> NATS[NATS JetStream]
+    Dashboard[Next.js Dashboard] --> API
+    CLI[Python oan CLI] --> API
 ```
 
-## 4. <a name="tech-stack"></a>Tech Stack
+The system is organized around a versioned `/v1` API. PostgreSQL stores durable application data, Redis provides caching and operational state, and NATS JetStream supports messaging and streaming workflows. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/PROTOCOL.md](docs/PROTOCOL.md), and [docs/DATA_MODEL.md](docs/DATA_MODEL.md) for the detailed design.
 
-### Backend
-- **Framework**: [FastAPI 0.111+](https://fastapi.tiangolo.com/)
-- **Language**: Python 3.12
-- **ORM**: [SQLAlchemy 2.0+](https://www.sqlalchemy.org/)
-- **Migrations**: [Alembic 1.13+](https://alembic.sqlalchemy.org/)
+## Repository layout
 
-### Infrastructure
-- **Database**: [PostgreSQL 16](https://www.postgresql.org/) (JSONB support)
-- **Message Broker**: [NATS JetStream 2.10](https://nats.io/)
-- **Cache**: [Redis 7](https://redis.io/)
+| Path | Purpose |
+|---|---|
+| `backend/` | FastAPI application, SQLAlchemy models, Alembic migrations, services, scripts, and tests. |
+| `frontend/` | Next.js dashboard using the App Router. |
+| `cli/` | Installable Python `oan` command-line client. |
+| `sdk/python/` | Python client SDK. |
+| `sdk/typescript/` | TypeScript client SDK. |
+| `scripts/` | Example agents and shared scripts. |
+| `infra/docker/` | Local Docker Compose development stack. |
+| `infra/k8s/` | Kubernetes manifests and deployment notes. |
+| `infra/nats/` | NATS server configuration. |
+| `docs/` | API, architecture, data model, protocol, design, roadmap, and security documentation. |
 
-### Frontend
-- **Framework**: [Next.js 14.2](https://nextjs.org/) (App Router)
-- **Language**: TypeScript 5.4
-- **Styling**: Standard CSS (No Tailwind)
-- **Visuals**: [React Flow](https://reactflow.dev/) for DAG visualization
+## Requirements
 
-## 5. <a name="getting-started"></a>Getting Started
+The supported development toolchain is:
 
-### Prerequisites
-- Python 3.12+
-- Node.js 22+ & pnpm 9+
-- Docker & Docker Compose
-- NATS Server (local or via Docker)
+| Component | Requirement |
+|---|---|
+| Python | 3.11 or newer |
+| Node.js | 22, as used by the repository CI workflow |
+| pnpm | 11.21.0 in CI; a compatible pnpm 11 release is recommended locally |
+| Docker | Required for the local PostgreSQL, Redis, NATS, and backend services |
+| PostgreSQL | PostgreSQL 15 with the `pgvector` image in the development Compose file |
+| Redis | Redis 7 or newer |
+| NATS | NATS 2.10 with JetStream |
 
-### Installation
+## Quick start
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/vincenzo-afk/OpenAgentNet.git
-   cd OpenAgentNet
-   ```
-
-2. **Setup Backend**:
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   bash scripts/generate-keys.sh
-   cp .env.example .env
-   alembic upgrade head
-   ```
-
-3. **Setup Frontend**:
-   ```bash
-   cd ../frontend
-   pnpm install
-   cp .env.example .env.local
-   ```
-
-4. **Start Infrastructure**:
-   ```bash
-   docker-compose -f infra/docker/docker-compose.dev.yml up -d
-   ```
-
-### Configuration
-
-The backend is configured via environment variables in `backend/.env`:
-
-| Variable | Default | Description |
-|---|---|---|
-| `DATABASE_URL` | `postgresql+asyncpg://...` | PostgreSQL connection string |
-| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection string |
-| `NATS_URL` | `nats://localhost:4222` | NATS connection string |
-| `OPERATOR_SECRET` | `[REQUIRED]` | Secret for administrative actions |
-
-## 6. <a name="usage"></a>Usage
-
-### Registering an Agent
-Using the provided Python SDK:
-
-```python
-from scripts.sdk.oan import OANAgent
-
-agent = OANAgent(
-    name="my-summarizer",
-    display_name="Pro Summarizer",
-    capabilities=[{"name": "summarization", "description": "Summarizes text"}]
-)
-agent.register()
-print(f"Agent Registered: {agent.did}")
-```
-
-### Running a Workflow
-Submit a DAG of tasks to the orchestration engine:
+### 1. Clone the repository
 
 ```bash
-curl -X POST http://localhost:8000/v1/workflows \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Research Pipeline",
-    "definition": {
-      "tasks": [
-        {"id": "fetch", "agent_capability": "web-fetch", "payload": {"url": "..."}},
-        {"id": "sum", "agent_capability": "summarize", "depends_on": ["fetch"]}
-      ]
-    }
-  }'
+git clone https://github.com/vincenzo-afk/OpenAgentNet.git
+cd OpenAgentNet
 ```
 
-## 7. <a name="api-reference"></a>API Reference
+### 2. Start local infrastructure
 
-| Method | Endpoint | Description | Scopes |
-|---|---|---|---|
-| `POST` | `/v1/agents/register` | Register a new agent | None |
-| `GET` | `/v1/agents/me` | Get current agent profile | `agent:read` |
-| `GET` | `/v1/discover` | Search for agents | `agent:read` |
-| `POST` | `/v1/messages` | Send a message/task | `message:send` |
-| `GET` | `/v1/trust/{id}` | Get agent trust score | `trust:read` |
-| `POST` | `/v1/workflows` | Submit a new workflow | `workflow:create` |
-| `GET` | `/v1/marketplace` | Browse listings | `marketplace:read` |
+The development Compose file starts PostgreSQL with pgvector, Redis, NATS, and the backend service:
 
-Full API documentation is available at `/docs` (Swagger) and `/redoc`.
-
-## 8. <a name="project-structure"></a>Project Structure
-
-<details>
-<summary>View Directory Tree</summary>
-
-```text
-.
-├── backend/                # FastAPI Application
-│   ├── app/                # Core logic
-│   │   ├── api/            # Route handlers
-│   │   ├── models/         # SQLAlchemy models
-│   │   └── services/       # Business logic
-│   ├── alembic/            # Database migrations
-│   ├── scripts/            # Utility & Seeding scripts
-│   └── tests/              # Pytest suite
-├── frontend/               # Next.js Dashboard
-│   ├── src/app/            # App Router pages
-│   └── src/components/     # UI Components
-├── infra/                  # Infrastructure config
-│   └── docker/             # Docker Compose files
-├── scripts/                # SDK and Example agents
-│   └── sdk/                # Python OAN SDK
-└── docs/                   # Detailed documentation
+```bash
+docker compose -f infra/docker/docker-compose.dev.yml up -d
 ```
-</details>
 
-## 9. <a name="roadmap"></a>Features & Roadmap
+### 3. Configure and install the backend
 
-| Version | Milestone | Status |
-|---|---|---|
-| `v0.1.0` | Identity & Registry | ✅ Complete |
-| `v0.2.0` | Trust & Reputation | ✅ Complete |
-| `v0.3.0` | Capability Negotiation | ✅ Complete |
-| `v0.4.0` | Orchestration Engine | ✅ Complete |
-| `v0.5.0` | Shared Memory | ✅ Complete |
-| `v0.6.0` | Marketplace | ✅ Complete |
-| `v1.0.0` | Distributed Execution | ⏳ Planned |
+```bash
+cp .env.example .env
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+bash scripts/generate-keys.sh
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+```
 
-## 10. <a name="testing"></a>Testing
+The API is available at `http://localhost:8000`. Interactive OpenAPI documentation is exposed at [`/docs`](http://localhost:8000/docs), and the ReDoc view is available at [`/redoc`](http://localhost:8000/redoc).
 
-### Backend Tests
-Run the full test suite with 41+ passing tests:
+### 4. Install and run the dashboard
+
+In a second terminal:
+
+```bash
+cd OpenAgentNet/frontend
+pnpm install
+pnpm dev
+```
+
+The dashboard uses the API base URL configured by `NEXT_PUBLIC_API_BASE_URL`, `API_BASE_URL`, or its local default of `http://localhost:8000/v1`.
+
+## Configuration
+
+The backend reads environment variables from `.env`. Begin with [.env.example](.env.example); the authoritative settings model is [backend/app/core/config.py](backend/app/core/config.py).
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Async PostgreSQL connection string. |
+| `REDIS_URL` | Redis connection string. |
+| `NATS_URL` | NATS connection string. |
+| `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH` | Paths to the generated JWT signing keys. |
+| `JWT_ALGORITHM` | JWT signing algorithm configured for the API. |
+| `API_V1_PREFIX` | Versioned API prefix; the default is `/v1`. |
+| `CORS_ORIGINS` | Allowed browser origins. |
+| `OPERATOR_SECRET` | Secret used for protected operator actions. |
+| `OAN_BASE_URL` | Base URL used by the CLI; defaults to `http://localhost:8000/v1`. |
+| `OAN_TOKEN` | Optional bearer token used by the CLI. |
+| `NEXT_PUBLIC_API_BASE_URL` | Browser-visible API base URL for the dashboard. |
+
+Never commit populated `.env` files, private keys, access tokens, or operator secrets.
+
+## API and client usage
+
+The API exposes route groups for agents, discovery, federation, messages and tasks, trust, teams, negotiations, routing, workflows, memory, marketplace, privacy, and administrative operations. The complete endpoint reference is maintained in [docs/API.md](docs/API.md), while the running service provides generated OpenAPI documentation at `/docs`.
+
+A minimal health check against a running local service is:
+
+```bash
+curl http://localhost:8000/health
+```
+
+The Python CLI can be installed from the repository and uses the `oan` console command:
+
+```bash
+cd cli
+pip install -e .
+oan --help
+oan --base-url http://localhost:8000/v1 discover --help
+```
+
+The CLI supports discovery, routing, team operations, task submission and retrieval, task streaming, agent version history and diffs, and proof verification. See [cli/README.md](cli/README.md) for the current command reference.
+
+## Testing and quality checks
+
+Run backend unit and integration tests from the backend directory:
+
 ```bash
 cd backend
 pytest tests/ -q
 ```
 
-### End-to-End Smoke Test
-Verify the entire system flow (Registry → Discovery → Messaging → Trust):
+Run the end-to-end smoke test from the repository root against a running local stack:
+
 ```bash
+cd ..
 python e2e_test.py
 ```
 
-## 11. <a name="deployment"></a>Deployment
+Build the dashboard before submitting frontend changes:
 
-### Docker
-Production-ready images are provided in the `backend/Dockerfile`.
 ```bash
-docker build -t openagentnet-backend ./backend
+cd frontend
+pnpm build
 ```
 
-### Kubernetes
-See `docs/ARCHITECTURE.md` for the recommended production deployment strategy using StatefulSets for NATS and PostgreSQL.
+For schema changes, create and review an Alembic migration, apply it to a fresh database, and run the schema audit:
 
-## 12. <a name="contributing"></a>Contributing
+```bash
+cd backend
+alembic revision -m "describe the change" --autogenerate
+PYTHONPATH=. python ../scripts/audit_schema.py
+```
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-- **Branching**: Use `feat/`, `fix/`, or `docs/` prefixes.
-- **Commits**: Follow [Conventional Commits](https://www.conventionalcommits.org/).
+GitHub Actions runs backend tests, the end-to-end check, the frontend build, and a Bandit security scan. See [.github/workflows/ci.yml](.github/workflows/ci.yml) and [.github/workflows/security.yml](.github/workflows/security.yml).
 
-## 13. <a name="security"></a>Security
+## Deployment
 
-Security is a top priority.
-- **Identity**: All agent communications are signed using Ed25519.
-- **Auth**: JWT RS256 for API authentication.
-- **Audit**: Full audit logging for administrative actions.
-See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
+The repository includes a backend image definition at [backend/Dockerfile](backend/Dockerfile), a local development stack at [infra/docker/docker-compose.dev.yml](infra/docker/docker-compose.dev.yml), and Kubernetes resources under [infra/k8s/](infra/k8s/). Review [infra/k8s/README.md](infra/k8s/README.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before deploying. Production credentials, signing keys, database configuration, ingress, and observability settings must be supplied by the operator.
 
-## 14. <a name="license"></a>License
+## Security
 
-This project is licensed under the **Apache License 2.0**. See the [LICENSE](LICENSE) file for details.
+OpenAgentNet implements Ed25519-based agent identity and message signing, JWT-based API authentication, access-controlled shared memory, namespace isolation, payload validation, rate limiting, and audit-oriented administrative operations. These mechanisms should not be treated as a substitute for deployment-specific threat modeling or secret management.
 
-## 15. <a name="acknowledgments"></a>Acknowledgments
+Please report suspected vulnerabilities privately using the process in [SECURITY.md](SECURITY.md). Do not disclose exploitable details in a public issue.
 
-- [NATS.io](https://nats.io) for the high-performance messaging backbone.
-- [FastAPI](https://fastapi.tiangolo.com) for the modern API framework.
-- The open-source AI agent community for inspiration.
+## Contributing
 
-## 16. <a name="footer"></a>Footer
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Changes should follow the existing module boundaries, include appropriate tests, update documentation when behavior changes, and use the repository's existing branch and commit conventions. The repository's ownership policy is defined in [.github/CODEOWNERS](.github/CODEOWNERS).
 
-<p align="center">
-  <a href="#header">Back to Top</a>
-</p>
+## License
 
-<p align="center">
-  Built with ❤️ by <strong>Manus AI</strong> on behalf of <strong>vincenzo-afk</strong>
-</p>
+OpenAgentNet is licensed under the [Apache License 2.0](LICENSE).
 
-<p align="center">
-  <a href="https://github.com/vincenzo-afk">GitHub</a> •
-  <a href="https://openagentnet.io">Website [PLACEHOLDER]</a> •
-  <a href="https://twitter.com/openagentnet">Twitter [PLACEHOLDER]</a>
-</p>
+## Maintainer
+
+OpenAgentNet is maintained by [vincenzo-afk](https://github.com/vincenzo-afk).
+
+[FastAPI]: https://fastapi.tiangolo.com/
+[Next.js]: https://nextjs.org/
+[PostgreSQL]: https://www.postgresql.org/
+[Redis]: https://redis.io/
+[NATS JetStream]: https://docs.nats.io/nats-concepts/jetstream
+[Apache License 2.0]: https://www.apache.org/licenses/LICENSE-2.0

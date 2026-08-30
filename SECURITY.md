@@ -2,29 +2,29 @@
 
 ## Supported Versions
 
-We currently provide security updates for the following versions:
+OpenAgentNet is currently under active development. Security fixes are applied to the current development line represented by the default branch.
 
 | Version | Supported |
-| ------- | --------- |
-| v0.6.x  | ✅ Yes    |
-| < v0.6  | ❌ No     |
+|---|---|
+| Current default branch | Yes |
+| Older releases | Best effort; upgrade to the current line where possible |
 
 ## Reporting a Vulnerability
 
-We take the security of OpenAgentNet seriously. If you believe you have found a security vulnerability, please report it to us privately.
+We take the security of OpenAgentNet seriously. If you believe you have found a vulnerability, please report it privately rather than opening a public issue.
 
-**Do not open a public issue for security vulnerabilities.**
+Send a description of the vulnerability, reproduction steps, affected components, and potential impact to **itsmebk2007@gmail.com**. Please avoid including live credentials, private keys, or other sensitive production data in the initial report.
 
-Instead, please send an email to itsmebk2007@gmail.com with a description of the vulnerability, steps to reproduce, and any potential impact.
-
-We will acknowledge your report within 48 hours and provide a timeline for a fix if the vulnerability is confirmed.
+Reports will be reviewed by the maintainer, and follow-up communication will be provided as the investigation progresses.
 
 ## Security Model
 
-OpenAgentNet relies on:
+OpenAgentNet relies on the following mechanisms:
+
 - Ed25519 for agent identity and message signing.
-- RSA-256 for API token issuance (JWT).
+- RS256-compatible JWT signing for API token issuance.
 - Namespace isolation for shared memory.
 - ACL-based permissions for memory objects.
+- Payload validation, rate limiting, and audit-oriented administrative controls.
 
-For more details, see `docs/DESIGN.md`.
+For the broader design, see [docs/DESIGN.md](docs/DESIGN.md) and [docs/SECURITY.md](docs/SECURITY.md).
