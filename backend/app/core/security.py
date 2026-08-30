@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt
 
 from app.core.config import get_settings
 
@@ -56,7 +56,7 @@ def decode_token(token: str) -> dict[str, Any] | None:
             algorithms=[settings.jwt_algorithm],
         )
         return payload
-    except JWTError:
+    except jwt.PyJWTError:
         return None
 
 
